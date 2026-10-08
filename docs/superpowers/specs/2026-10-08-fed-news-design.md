@@ -81,10 +81,13 @@ starts in 1998). Rows dated 1994-1999 are only ever training rows.
 - Target: the federal funds target set at the meeting, as the midpoint of the target range
   (`DFEDTAR` spliced to the `DFEDTARL`/`DFEDTARU` midpoint, reusing `fedfunds_gpt2`).
 - Class label: cut / hold / hike from the sign of the change.
-- Meeting set: the union of minutes-link dates and statement dates on the Fed's calendar pages
-  from 1994 (dates within two days merged to the later one), plus any target change more than
-  three days after every such date (an unscheduled move). From 2000, when the FOMC began issuing
-  a statement after every meeting, it matches `fedfunds_gpt2/data/meetings.pkl`.
+- Meeting set: every minutes-link date on the Fed's calendar pages from 1994 (one per scheduled
+  meeting; dates within two days merged to the later one), plus every target change that is not
+  within three days after one of those dates (an unscheduled move), dated by its statement when a
+  statement link falls on the change date or the day before. Statement-only dates are not
+  meetings: on the calendar pages they include press releases without a rate decision (liquidity
+  facilities, swap lines, asset purchases, the 2020 framework statement). This differs from
+  `fedfunds_gpt2/data/meetings.pkl`, which counted those releases as hold decisions.
 - Cutoff: inputs dated strictly before the first day of the meeting, implemented as the day
   before the decision date (exact for two-day meetings, one day conservative for one-day ones).
 - Primary test window: meetings from January 2001 to the latest meeting (about 210 meetings).
