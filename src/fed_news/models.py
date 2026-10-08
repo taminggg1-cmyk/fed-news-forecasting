@@ -41,6 +41,8 @@ class OrderedLogit:
 
     def fit(self, X, y):
         y = np.asarray(y, dtype=int)
+        if not np.isfinite(X).all():
+            raise ValueError("OrderedLogit.fit: non-finite values in X")
         p = X.shape[1]
         frac = np.clip(np.cumsum(np.bincount(y, minlength=3) / len(y))[:2], 1e-3, 1 - 1e-3)
         gap = max(logit(frac[1]) - logit(frac[0]), 1e-3)
@@ -48,10 +50,15 @@ class OrderedLogit:
         res = minimize(self._loss, w0, args=(X, y), jac=True, method="L-BFGS-B")
         self.beta_ = res.x[:p]
         self.t1_, self.t2_ = res.x[p], res.x[p] + np.exp(res.x[p + 1])
+        if not (np.isfinite(self.beta_).all() and np.isfinite([self.t1_, self.t2_]).all()):
+            raise ValueError("OrderedLogit fit produced non-finite parameters (check inputs for inf/NaN)")
         return self
 
     def predict_proba(self, X):
-        return self._probs(X, self.beta_, self.t1_, self.t2_)
+        proba = self._probs(X, self.beta_, self.t1_, self.t2_)
+        if not np.isfinite(proba).all():
+            raise ValueError("OrderedLogit produced non-finite probabilities")
+        return proba
 
 
 def expanding_folds(n: int, k: int = config.CV_FOLDS):
@@ -73,6 +80,8 @@ def choose_penalty(make, score, X, y, grid) -> float:
     for value in grid:
         s = np.mean([score(make(value).fit(X[tr], y[tr]), X[va], y[va])
                      for tr, va in expanding_folds(len(y))])
+        if not np.isfinite(s):
+            raise ValueError(f"non-finite CV score for penalty {value}")
         if s < best_score:
             best, best_score = value, s
     return best

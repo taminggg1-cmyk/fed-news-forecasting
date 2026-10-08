@@ -23,6 +23,7 @@ class Spec:
     kind: str
     cols: list[str] = field(default_factory=list)
     placebo: bool = False
+    shuffle_labels: bool = False
 
 
 def ladder(task: str) -> list[Spec]:
@@ -32,6 +33,7 @@ def ladder(task: str) -> list[Spec]:
         Spec("S", task, "primary", S_COLS),
         Spec("S+N", task, "primary", S_COLS + N_COLS),
         Spec("placebo", task, "primary", S_COLS + N_COLS, placebo=True),
+        Spec("shuffled", task, "primary", S_COLS + N_COLS, shuffle_labels=True),
         Spec("S+M", task, "primary", S_COLS + M_COLS),
         Spec("S+M+N", task, "primary", S_COLS + M_COLS + N_COLS),
     ]
@@ -75,6 +77,8 @@ def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None
     needed = list(dict.fromkeys(spec.cols + ["y_level", "y_change", "y_class", "s_rate_lag"]))
     if df[needed].isna().any().any():
         raise ValueError(f"{spec.name}: NaN in required columns; pass common_rows(df)")
+    if not np.isfinite(df[needed].to_numpy(float)).all():
+        raise ValueError(f"{spec.name}: non-finite (inf) value in required columns")
     dates = df.index
     test =np.flatnonzero((dates >= pd.Timestamp(test_start))
                           & (dates <= pd.Timestamp(test_end) if test_end else True))
@@ -94,15 +98,21 @@ def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None
         else:
             Xi = placebo_matrix(X, train, i, ncols, rng) if spec.placebo else X
             Z = _standardise(Xi, train)
+            yc, ycl = y_change, y_class
+            if spec.shuffle_labels:  # spec section 11 control: break the feature-target link in training
+                yc, ycl = y_change.copy(), y_class.copy()
+                rows = np.flatnonzero(train)
+                perm = rng.permutation(rows)
+                yc[rows], ycl[rows] = y_change[perm], y_class[perm]
             if spec.task == "T1":
                 alpha = models.choose_penalty(lambda a: Ridge(alpha=a), models.ridge_score,
-                                              Z[train], y_change[train], config.RIDGE_GRID)
-                change = float(Ridge(alpha=alpha).fit(Z[train], y_change[train]).predict(Z[i:i + 1])[0])
+                                              Z[train], yc[train], config.RIDGE_GRID)
+                change = float(Ridge(alpha=alpha).fit(Z[train], yc[train]).predict(Z[i:i + 1])[0])
             else:
                 lam = models.choose_penalty(models.OrderedLogit, models.logloss_score,
-                                            Z[train], y_class[train], config.ORDLOGIT_GRID)
-                proba = models.OrderedLogit(lam).fit(Z[train], y_class[train]).predict_proba(Z[i:i + 1])[0]
-                change = float(proba @ models.move_sizes(y_class[train], y_change[train]))
+                                            Z[train], ycl[train], config.ORDLOGIT_GRID)
+                proba = models.OrderedLogit(lam).fit(Z[train], ycl[train]).predict_proba(Z[i:i + 1])[0]
+                change = float(proba @ models.move_sizes(ycl[train], yc[train]))
                 cls = int(proba.argmax())
         if cls is None:
             cls = int(models.classes_from_change(np.array([change]))[0])

@@ -40,12 +40,25 @@ def _latest_before(series: pd.Series, cutoff: pd.Timestamp) -> float:
     return float(sub.sort_index().iloc[-1]) if len(sub) else np.nan
 
 
+def safe_log(series: pd.Series) -> pd.Series:
+    """Log of a positive index; values <= 0 (the GPR index has exact zeros) are missing, never -inf."""
+    return np.log(series.where(series > 0))
+
+
+def check_finite(frame: pd.DataFrame) -> None:
+    """Raise if any non-missing value is +-inf (NaN is allowed: those rows drop in common_rows)."""
+    bad = np.isinf(frame.to_numpy(float))
+    if bad.any():
+        cols = [c for c, b in zip(frame.columns, bad.any(0)) if b]
+        raise ValueError(f"non-finite values in {cols}")
+
+
 def build_text_features(rows: pd.DataFrame, stance: pd.DataFrame, beige: pd.Series,
                         idx: pd.DataFrame) -> pd.DataFrame:
     if not rows.index.is_monotonic_increasing:
         raise ValueError("rows must be in chronological order (ffill/diff depend on it)")
     out = pd.DataFrame(index=rows.index)
-    log_gpr, log_epu = np.log(idx["gpr"]), np.log(idx["epu"])
+    log_gpr, log_epu = safe_log(idx["gpr"]), safe_log(idx["epu"])
     out["n_stance"] = pd.Series([fed_stance(stance, s, c) for s, c in zip(rows["win_start"], rows["cutoff"])],
                                 index=rows.index).ffill()
     out["n_stance_chg"] = out["n_stance"].diff()
@@ -62,7 +75,9 @@ def attach_all() -> None:
     idx = load_indices()
     for name in ("t1", "t2"):
         rows = pd.read_pickle(config.DATA / f"{name}.pkl")
-        full = rows.join(build_text_features(rows, stance, beige, idx))
+        feats = build_text_features(rows, stance, beige, idx)
+        check_finite(feats)
+        full = rows.join(feats)
         full.to_pickle(config.DATA / f"{name}_full.pkl")
         print(f"{name}: N non-missing\n{full[N_COLS].notna().sum().to_string()}", flush=True)
 

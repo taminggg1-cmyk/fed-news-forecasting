@@ -1,4 +1,6 @@
 """Metrics, the pre-registered H1 decision, and RESULTS.md (spec section 8)."""
+import subprocess
+
 import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score
@@ -11,7 +13,7 @@ PAPER_ROWS = [  # spec ladder row 1: the paper's own reported numbers
     ("paper GRU (Table 2)", 0.2705 ** 2, 0.2705, 0.1327, 0.0091),
     ("paper LLM, lookahead (Table 3)", 0.0311, 0.1762, 0.1483, np.nan),
 ]
-NAMES = ["rw", "taylor", "S", "S+N", "placebo", "S+M", "S+M+N"]
+NAMES = ["rw", "taylor", "S", "S+N", "placebo", "shuffled", "S+M", "S+M+N"]
 
 
 def metrics(preds: pd.DataFrame) -> dict:
@@ -22,13 +24,30 @@ def metrics(preds: pd.DataFrame) -> dict:
             "macro_f1": float(f1_score(preds["class_true"], preds["class_pred"], average="macro"))}
 
 
-def decide(main_p, placebo_p, alpha: float = config.ALPHA) -> str:
-    for p in main_p + placebo_p:
+def decide(main_p, placebo_p, shuffled_p, alpha: float = config.ALPHA, shuffled_alpha: float = 0.01) -> str:
+    for p in list(main_p) + list(placebo_p) + list(shuffled_p):
         if np.isnan(p):
-            raise ValueError(f"NaN p-value in decision inputs")
-    if any(p < alpha for p in placebo_p):
+            raise ValueError("NaN p-value in decision inputs")
+    if any(p < alpha for p in placebo_p) or any(p < shuffled_alpha for p in shuffled_p):
         return "void"
     return "supported" if all(p < alpha for p in main_p) else "not supported"
+
+
+def deviations_section(repo=config.REPO) -> str:
+    path = repo / "DEVIATIONS.md"
+    return path.read_text(encoding="utf-8").strip() if path.exists() else "None recorded."
+
+
+def _git(repo, *args) -> str:
+    out = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def provenance_section(repo=config.REPO) -> str:
+    prereg = _git(repo, "rev-parse", "--verify", "--quiet", f"refs/tags/{config.PREREG_TAG}^{{commit}}") or "no tag"
+    diff = _git(repo, "diff", "--stat", config.PREREG_TAG, "--", "src") if prereg != "no tag" else ""
+    return "\n".join([f"- prereg tag commit: {prereg}", f"- HEAD: {_git(repo, 'rev-parse', 'HEAD')}",
+                      "- `git diff --stat prereg -- src`:", "", "```", diff, "```"])
 
 
 def _load(task):
@@ -47,17 +66,17 @@ def _correct(p):
     return (p["class_pred"] == p["class_true"]).to_numpy()
 
 
-def _three_tests(t1, t2, new):
+def _three_tests(t1, t2, new, base="S"):
     # Check T1 dates match
-    if not t1["S"]["date"].equals(t1[new]["date"]):
-        raise ValueError(f"prediction dates differ: {new} vs S")
+    if not t1[base]["date"].equals(t1[new]["date"]):
+        raise ValueError(f"prediction dates differ: {new} vs {base}")
     # Check T2 dates match
-    if not t2["S"]["date"].equals(t2[new]["date"]):
-        raise ValueError(f"prediction dates differ: {new} vs S")
+    if not t2[base]["date"].equals(t2[new]["date"]):
+        raise ValueError(f"prediction dates differ: {new} vs {base}")
 
-    p1 = dm_hln(_sq(t1["S"]), _sq(t1[new]))[1]
-    p2 = dm_hln(_sq(t2["S"]), _sq(t2[new]))[1]
-    p3 = mcnemar_greater(_correct(t2["S"]), _correct(t2[new]))[2]
+    p1 = dm_hln(_sq(t1[base]), _sq(t1[new]))[1]
+    p2 = dm_hln(_sq(t2[base]), _sq(t2[new]))[1]
+    p3 = mcnemar_greater(_correct(t2[base]), _correct(t2[new]))[2]
     return [p1, p2, p3]
 
 
@@ -73,9 +92,11 @@ def main() -> None:
     table.to_csv(config.RESULTS / "metrics.csv", index=False)
 
     main_p, placebo_p = _three_tests(t1, t2, "S+N"), _three_tests(t1, t2, "placebo")
-    verdict = decide(main_p, placebo_p)
+    shuffled_p = _three_tests(t1, t2, "shuffled", base="rw")
+    verdict = decide(main_p, placebo_p, shuffled_p)
     tests = pd.DataFrame({"test": ["T1 DM-HLN", "T2 DM-HLN", "T2 McNemar"],
-                          "S+N vs S": main_p, "placebo vs S": placebo_p})
+                          "S+N vs S": main_p, "placebo vs S": placebo_p,
+                          "shuffled vs rw": shuffled_p})
     tests.to_csv(config.RESULTS / "h1_tests.csv", index=False)
 
     h2 = {"H2c T1 S+N vs rw": dm_hln(_sq(t1["rw"]), _sq(t1["S+N"]))[1],
@@ -99,7 +120,8 @@ def main() -> None:
         "## Secondary (Holm within Plan 1 only; final Holm after Plans 2-3)", "",
         h2_frame.to_markdown(index=False, floatfmt=".4f"), "",
         "## Stance classifier held-out accuracy", "", stance_acc.to_markdown(index=False, floatfmt=".3f"), "",
-        "## Deviations", "", "None recorded.", "",
+        "## Deviations", "", deviations_section(), "",
+        "## Provenance", "", provenance_section(), "",
     ]
     (config.REPO / "RESULTS.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines[:8]))

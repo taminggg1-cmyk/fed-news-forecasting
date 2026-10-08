@@ -46,7 +46,7 @@ def test_placebo_touches_only_n_columns_and_uses_training_rows():
 
 def test_ladder_names_and_blocks():
     names = [s.name for s in wf.ladder("T2")]
-    assert names == ["rw", "taylor", "S", "S+N", "placebo", "S+M", "S+M+N"]
+    assert names == ["rw", "taylor", "S", "S+N", "placebo", "shuffled", "S+M", "S+M+N"]
     spec = {s.name: s for s in wf.ladder("T2")}
     assert spec["S+N"].cols == panel.S_COLS + panel.N_COLS and spec["placebo"].placebo
 
@@ -127,7 +127,7 @@ def test_placebo_runs_end_to_end():
     assert len(out) > 0 and np.isfinite(out["y_pred"]).all()
 
 
-@pytest.mark.parametrize("name", ["S+N", "placebo", "S+M+N"])
+@pytest.mark.parametrize("name", ["S+N", "placebo", "shuffled", "S+M+N"])
 def test_all_text_specs_refused_without_prereg(monkeypatch, name):
     monkeypatch.setattr(wf, "prereg_ok", lambda repo=None: False)
     spec = {s.name: s for s in wf.ladder("T2")}[name]
@@ -149,3 +149,21 @@ def test_run_spec_rejects_unsorted_index():
     with pytest.raises(ValueError):
         wf.run_spec(df, spec, "2000-01-01", require_prereg=False)
 
+
+
+def test_run_spec_rejects_inf_feature():
+    df = synthetic()
+    df.iloc[10, df.columns.get_loc("n_epu")] = np.inf
+    spec = {s.name: s for s in wf.ladder("T2")}["S+N"]
+    with pytest.raises(ValueError, match="non-finite"):
+        wf.run_spec(df, spec, "2000-01-01", require_prereg=False)
+
+
+def test_shuffled_labels_control_destroys_signal():
+    df = synthetic(120)
+    spec = {s.name: s for s in wf.ladder("T2")}
+    sn = wf.run_spec(df, spec["S+N"], "2002-01-01", require_prereg=False)
+    sh = wf.run_spec(df, spec["shuffled"], "2002-01-01", require_prereg=False)
+    acc = lambda p: (p["class_pred"] == p["class_true"]).mean()
+    assert np.isfinite(sh["y_pred"]).all()
+    assert acc(sh) < acc(sn) - 0.15

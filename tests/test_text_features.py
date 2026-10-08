@@ -82,3 +82,19 @@ def test_nan_stance_docs_are_skipped_and_all_nan_window_carries_forward():
                         index=[T("2020-01-11"), T("2020-01-21")])
     out = tf.build_text_features(rows, docs, pd.Series([0.2], index=[T("2019-12-01")]), _idx())
     assert out["n_stance"].tolist() == pytest.approx([0.4, 0.4])
+
+
+def test_zero_gpr_epu_treated_as_missing_not_minus_inf():
+    idx = _idx()
+    idx.loc["2020-01-02", ["gpr", "epu"]] = 0.0
+    rows = pd.DataFrame({"win_start": [T("2020-01-01")], "cutoff": [T("2020-01-15")]}, index=[T("2020-01-16")])
+    out = tf.build_text_features(rows, stance_docs(), pd.Series([0.2], index=[T("2019-12-01")]), idx)
+    assert out["n_gpr"].iloc[0] == pytest.approx(np.log(100.0))
+    assert out["n_epu"].iloc[0] == pytest.approx(np.log(50.0))
+    assert np.isnan(tf.safe_log(pd.Series([0.0, -1.0, 1.0])).iloc[:2]).all()
+
+
+def test_check_finite_raises_on_inf_but_allows_nan():
+    tf.check_finite(pd.DataFrame({"a": [1.0, np.nan]}))
+    with pytest.raises(ValueError, match="non-finite"):
+        tf.check_finite(pd.DataFrame({"a": [1.0, -np.inf]}))

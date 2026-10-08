@@ -62,3 +62,25 @@ def test_taylor_predict_recovers_linear_rule():
     X = rng.normal(size=(100, 3))
     y = 0.5 + X @ np.array([0.9, 0.3, -0.2])
     assert models.taylor_predict(X, y, np.array([1.0, 1.0, 1.0])) == pytest.approx(1.5)
+
+
+def test_ordered_logit_raises_on_non_finite_data():
+    X, y = simulate(100)
+    X[3, 0] = np.inf
+    with pytest.raises(ValueError):
+        models.OrderedLogit(0.1).fit(X, y)
+
+
+def test_ordered_logit_predict_raises_on_non_finite_proba():
+    X, y = simulate(100)
+    fitted = models.OrderedLogit(0.1).fit(X, y)
+    Xbad = X[:2].copy()
+    Xbad[0, 0] = np.nan
+    with pytest.raises(ValueError):
+        fitted.predict_proba(Xbad)
+
+
+def test_choose_penalty_raises_on_nan_score():
+    X, y = simulate(100)
+    with pytest.raises(ValueError):
+        models.choose_penalty(models.OrderedLogit, lambda m, X, y: float("nan"), X, y, (0.1, 1.0))
