@@ -55,6 +55,8 @@ so far (dates memorised on gold with 2,517 days; LSTM lost to a logit on 115 mee
   f. An LLM news reader (Qwen2.5-7B-Instruct, with ChronoGPT-instruct as its lookahead-free
      twin) improves on S, and its edge over the twin is larger before its release date than
      after it.
+  g. Telling the modern LLM to use only information up to the forecast date (the paper's own
+     safeguard, and the user's proposal) does not remove its lookahead.
 
 ## 4. Tasks
 
@@ -247,10 +249,23 @@ are not changed after seeing results.
   lower or maintain the target rate, and the answer is scored by the log-probabilities of the three
   answer words (no free generation). Chunk scores are averaged into document and day scores, then
   over the row's window into two features: `P(raise) - P(lower)` and `1 - P(maintain)`.
-- **Lookahead diagnostic (H2e, H2f):** for each model pair, the modern model's error advantage
-  over the ChronoGPT twin on test rows before 2024-09-19 (Qwen2.5's release) minus its advantage
-  after it. A positive gap is evidence of lookahead. Qwen results are always reported next to
-  this diagnostic.
+- **H2g, instruction arm:** every Qwen prompt in H2e and H2f is run twice, plain and with the
+  instruction "Today is {date}. You must use only information available up to {date}. Do not
+  use any knowledge of events after {date}." Both arms get the lookahead diagnostic below.
+- **Recall audit (before any Qwen feature is used):** for every test meeting, ask Qwen the
+  target-range upper bound in force after that meeting, with no context. Report recall accuracy
+  by year against the always-same-as-before baseline. Years where recall beats that baseline are
+  flagged as memorised in every Qwen table (method of Lopez-Lira, Tang and Zhu 2025).
+- **Lookahead diagnostic (H2e, H2f, H2g):** for each model pair, the modern model's error
+  advantage over the ChronoGPT twin on test rows before 2024-09-19 (Qwen2.5's release) minus its
+  advantage after it. A positive gap is evidence of lookahead. Qwen results are always reported
+  next to this diagnostic and the recall audit.
+- **Pilot evidence (2026-10-08, throwaway, five cases, Qwen2.5-3B-Instruct):** the model's
+  recall of past rates was mostly wrong (3 of 5 off by more than a point), so a small model has
+  little to leak. In the one case it knew (2022 hikes, recall 4.25), the instructed forecast made
+  "as of December 1, 2021" with no current rate given was 4.50, the exact outcome, against a
+  then-current 0.25. When the current rate was supplied it anchored on it (0.50). The instruction
+  did not prevent the leak where the knowledge existed.
 
 ## 10. Code layout and run order
 
