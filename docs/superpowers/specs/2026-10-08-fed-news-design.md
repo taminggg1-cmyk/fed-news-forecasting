@@ -133,11 +133,15 @@ spreads to the standing target, target level, zero-lower-bound flag), VIX, and W
 | Economic Policy Uncertainty, daily (Baker, Bloom and Davis) | newspaper-based policy uncertainty, daily since 1985 | policyuncertainty.com |
 | Guardian headlines (H2f only) | headline and trail text from the business, us-news and world sections, filtered by a fixed keyword list (Fed, interest rates, inflation, jobs, recession, banks, oil, war, sanctions, tariffs, terrorism, pandemic), 1999 onward | Guardian Open Platform; key in `gold_gpt2/secrets/guardian_key.txt`; reuse `gold_gpt2/src/fetch_guardian.py` |
 
-Every document carries a date. Trillion Dollar Words labelled sentences (2,480) carry a `year`
-field in the published dataset, so the classifier for year y trains on labels with year < y. The
-1,000 Federal Reserve sentences of the World Central Banks dataset
-(`gtfintechlab/federal_reserve_system`, CC BY-NC-SA 4.0), which use the same three stance labels
-and also carry a year, are added to the label pool; duplicate sentences are removed. Regional
+Every document carries a date. Statements are dated by the date in their own text header, or by
+the calendar link date if that is later (one 2007 statement is linked under the wrong date).
+Labelled sentences come from Trillion Dollar Words (2,480) and the 1,000 Federal Reserve sentences
+of the World Central Banks dataset (`gtfintechlab/federal_reserve_system`, CC BY-NC-SA 4.0), which
+use the same three stance labels; duplicates are removed. The datasets' `year` fields are NOT
+document years (for Trillion Dollar Words they match the source document's year in about 5% of
+cases), so each label is dated by the earliest release date of a corpus document that contains it,
+and unmatched labels are dropped. The classifier for year y trains on labels dated before
+January 1 of year y. Regional
 Reserve Bank presidents' speeches are out of scope (Section 13).
 
 ## 6. Primary text features
@@ -168,8 +172,8 @@ Sentence stance is `P(hawkish) - P(dovish)`. Document stance is the mean over it
 | F2 | stance change | F1 minus F1 of the previous meeting | F1(t-1) minus F1(t-2) |
 | F3 | Beige Book tone | Loughran-McDonald net tone `(pos - neg) / (pos + neg)` of the latest Beige Book before the cutoff | same, as of the end of month t-1 |
 | F4 | newspaper sentiment | SF Fed index, mean over the 30 days ending three days before the cutoff | same, ending three days before the end of month t-1 |
-| F5 | geopolitical risk | log daily GPR, mean over the same 30 days | same |
-| F6 | policy uncertainty | log daily EPU, mean over the same 30 days | same |
+| F5 | geopolitical risk | log daily GPR, mean over the same 30 days (days with GPR <= 0 treated as missing) | same |
+| F6 | policy uncertainty | log daily EPU, mean over the same 30 days (days with EPU <= 0 treated as missing) | same |
 
 ## 7. Models and results ladder
 
@@ -236,7 +240,9 @@ analyses use the same tests, are reported with Holm-adjusted p-values across the
 and cannot rescue a failed H1.
 
 **Voiding rule.** If the placebo (row 8) also beats S at p < 0.05 on any of the three tests,
-the H1 result is void and reported as a leakage or overfitting signal.
+the H1 result is void and reported as a leakage or overfitting signal. The same holds for the
+shuffled-label control (S+N columns, training targets permuted within each training window): if it
+beats the random walk / always-hold at p < 0.05 on any of the three tests, H1 is void.
 
 **Variance rule.** Every neural configuration is reported as mean ± standard deviation over
 8 seeds. A neural comparison counts only if its gap exceeds two seed standard deviations.
