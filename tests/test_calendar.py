@@ -55,6 +55,14 @@ def test_release_is_not_borrowed_from_neighbouring_block():
     assert pd.isna(cal.loc[pd.Timestamp("1994-03-22"), "release"])
 
 
+def test_release_not_read_from_closed_previous_block():
+    html = ('<p><a href="/fomc/MINUTES/1994/19940204min.htm">M</a> (Released Mar 25, 1994)</p>'
+            '<a href="/fomc/MINUTES/1994/19940322min.htm">M</a></p>')
+    cal = fomc_calendar.parse_calendar_html(html).set_index("date")
+    assert cal.loc[pd.Timestamp("1994-02-04"), "release"] == pd.Timestamp("1994-03-25")
+    assert pd.isna(cal.loc[pd.Timestamp("1994-03-22"), "release"])
+
+
 @pytest.mark.network
 def test_live_calendar_2005_minutes_release():
     cal = fomc_calendar.load_calendar(refresh=True).set_index(["kind", "date"])

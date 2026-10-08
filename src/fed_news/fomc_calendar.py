@@ -2,9 +2,11 @@
 conferences, Beige Books). Historical pages cover 1994-2020; the current page covers 2021 on.
 
 Minutes are released weeks after the meeting (after the next meeting before 2005), so their
-release date is read from the "Released ..." text that follows each minutes link. A release
-date that cannot be read, or is not within 0-120 days after the meeting, is left as NaT and
-the document is later dropped rather than dated by its meeting.
+release date is read from the "Released ..." text inside the same <p>/<div> block as the
+minutes link (it sits before, after or beside the links depending on the page era). Nothing
+outside that block is read, so a neighbour's date is never borrowed. A release date that
+cannot be read, or is not within 0-120 days after the meeting, is left as NaT and the document
+is later dropped rather than dated by its meeting.
 """
 import re
 
@@ -42,8 +44,8 @@ def _release_after(html: str, start: int, end: int, date: pd.Timestamp) -> pd.Ti
     era). Never borrows a date from a neighbouring block."""
     opens = [m.start() for m in BLOCK_OPEN.finditer(html, 0, start)]
     close = BLOCK_CLOSE.search(html, end)
-    if not opens or not close:
-        return pd.NaT
+    if not opens or not close or BLOCK_CLOSE.search(html, opens[-1], start):
+        return pd.NaT  # no block, or the nearest opening tag was already closed before the link
     found = RELEASED.search(html[opens[-1]:close.end()])
     if not found:
         return pd.NaT
