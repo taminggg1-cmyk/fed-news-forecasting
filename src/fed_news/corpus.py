@@ -14,6 +14,7 @@ import re
 import pandas as pd
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
+from pypdf.errors import PyPdfError
 
 from fed_news import config
 from fed_news.fomc_calendar import BASE, load_calendar
@@ -27,8 +28,12 @@ OLD_SPEECH_LIST = BASE + "/newsevents/speech/{}speech.htm"
 OLD_SPEECH_LINK = re.compile(
     r'href="((?:https?://www\.federalreserve\.gov)?/boarddocs/speeches/\d{4}/(\d{8})\d*/default\.htm)"', re.I)
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
-MONTH_DATE = re.compile(r"(January|February|March|April|May|June|July|August|September|October|"
-                        r"November|December)\s+(\d{1,2}),\s+(\d{4})")
+BEIGE_ARCHIVE = BASE + "/monetarypolicy/beigebook{}.htm"
+OLD_BEIGE_PDF = re.compile(r"files/fomc\d{8}beige(\d{8})\.pdf", re.I)
+ARCHIVE_ROW = re.compile(r"<tr\b.*?</tr>", re.I | re.S)
+ARCHIVE_DAY = re.compile(r"\s*([A-Z][a-z]+ \d{1,2})(?!\d)")
+ARCHIVE_DATE = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
+ARCHIVE_LINK = re.compile(r'<a\s[^>]*href="([^"]+)"[^>]*>\s*(HTML|PDF)\b', re.I)
 
 
 class CoverageError(RuntimeError):
@@ -54,14 +59,6 @@ def split_sentences(text: str) -> list[str]:
     return [s for s in parts if 30 <= len(s) <= 1000]
 
 
-def beige_release(text: str, month: pd.Timestamp) -> pd.Timestamp:
-    for m in MONTH_DATE.finditer(text):
-        day = pd.Timestamp(f"{m.group(1)} {m.group(2)} {m.group(3)}")
-        if day.year == month.year and day.month == month.month:
-            return day
-    return pd.NaT
-
-
 def _doc_id(doc_type: str, release: pd.Timestamp, url: str) -> str:
     return f"{doc_type}:{release:%Y%m%d}:{hashlib.sha1(url.encode()).hexdigest()[:8]}"
 
@@ -70,42 +67,92 @@ def _text(url: str) -> str:
     return pdf_to_text(get(url, binary=True)) if url.lower().endswith(".pdf") else html_to_text(get(url))
 
 
-def docs_from_calendar(cal: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, int]:
+def _fetch_text(url: str, presconf_date=None) -> str | None:
+    """Text of one document; None when it is missing or its PDF cannot be parsed. Network errors raise."""
+    try:
+        if presconf_date is not None:
+            try:
+                return pdf_to_text(get(PRESCONF_PDF.format(presconf_date), binary=True))
+            except FileNotFoundError:
+                pass
+        return _text(url)
+    except (FileNotFoundError, PyPdfError):
+        return None
+
+
+def _make_docs(rows_in, doc_type: str) -> tuple[pd.DataFrame, int]:
+    """rows_in: iterable of (url, release, speaker, presconf_date). Unusable documents are counted."""
     rows, dropped = [], 0
-    for r in cal[cal["kind"] == kind].itertuples():
-        try:
-            if kind == "presconf":
-                try:
-                    text = pdf_to_text(get(PRESCONF_PDF.format(r.date), binary=True))
-                except FileNotFoundError:
-                    text = _text(r.url)
-            else:
-                text = _text(r.url)
-        except FileNotFoundError:
+    for url, release, speaker, pdate in rows_in:
+        text = _fetch_text(url, pdate)
+        if text is None or pd.isna(release) or len(text) < config.MIN_DOC_CHARS:
             dropped += 1
             continue
-        release = r.release
-        if kind == "beige" and pd.isna(release):
-            release = beige_release(text, r.date)
-        if pd.isna(release) or len(text) < config.MIN_DOC_CHARS:
-            dropped += 1
-            continue
-        doc_type = TYPE_OF_KIND[kind]
-        rows.append({"doc_id": _doc_id(doc_type, release, r.url), "type": doc_type,
-                     "speaker": "", "release": pd.Timestamp(release), "text": text})
+        rows.append({"doc_id": _doc_id(doc_type, release, url), "type": doc_type,
+                     "speaker": speaker, "release": pd.Timestamp(release), "text": text})
     return pd.DataFrame(rows, columns=DOC_COLS), dropped
 
 
-def parse_speech_json(raw: str) -> pd.DataFrame:
-    rows = []
-    for item in json.loads(raw.lstrip("﻿")):
-        link = item.get("l", "")
-        if not link or not item.get("d"):
+def docs_from_calendar(cal: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, int]:
+    """Calendar rows of one kind as documents. Beige rows are only the 1994-95 PDFs, dated by the
+    8-digit date in the file name; later Beige Books come from the yearly archive pages."""
+    sub = cal[cal["kind"] == kind]
+    if kind == "beige":
+        found = sub["url"].str.extract(OLD_BEIGE_PDF)[0]
+        sub = sub[found.notna()].assign(release=pd.to_datetime(found.dropna(), format="%Y%m%d"))
+    pdate = (lambda r: r.date) if kind == "presconf" else (lambda r: None)
+    return _make_docs(((r.url, r.release, "", pdate(r)) for r in sub.itertuples()), TYPE_OF_KIND[kind])
+
+
+def parse_beige_archive(html: str, year: int) -> pd.DataFrame:
+    """Rows of a yearly archive page: 'Month D' plus the page year, and the HTML (else PDF) link.
+    Rows with an unparseable date or no link are skipped; their number is in frame.attrs['skipped']."""
+    rows, skipped = [], 0
+    for row in ARCHIVE_ROW.findall(html):
+        label = ARCHIVE_DATE.search(row)
+        if not label:
+            continue  # header row
+        links = {kind.upper(): href for href, kind in ARCHIVE_LINK.findall(row)}
+        link = links.get("HTML") or links.get("PDF")
+        try:
+            release = pd.to_datetime(f"{ARCHIVE_DAY.match(label.group(1)).group(1)} {year}", format="%B %d %Y")
+        except (ValueError, AttributeError):
+            release = None
+        if release is None or not link:
+            skipped += 1
+            continue
+        rows.append({"url": BASE + link if link.startswith("/") else link, "release": release})
+    frame = pd.DataFrame(rows, columns=["url", "release"])
+    frame.attrs["skipped"] = skipped
+    return frame
+
+
+def fetch_beige_archive() -> tuple[pd.DataFrame, int]:
+    listing, skipped = [], 0
+    for year in range(1996, pd.Timestamp.today().year + 1):
+        try:
+            page = parse_beige_archive(get(BEIGE_ARCHIVE.format(year)), year)
+        except FileNotFoundError:
+            continue
+        listing.append(page)
+        skipped += page.attrs["skipped"]
+    listing = pd.concat(listing, ignore_index=True).drop_duplicates("url")
+    docs, dropped = _make_docs(((r.url, r.release, "", None) for r in listing.itertuples()), "beige")
+    return docs, dropped + skipped
+
+
+def parse_speech_json(raw: str) -> tuple[pd.DataFrame, int]:
+    """(speeches, number of items skipped for a missing link or date)."""
+    rows, skipped = [], 0
+    for item in json.loads(raw.lstrip("\ufeff")):
+        link, stamp = item.get("l", ""), item.get("d", "")
+        if not link or not stamp:
+            skipped += 1
             continue
         rows.append({"url": BASE + link if link.startswith("/") else link,
-                     "release": pd.to_datetime(item["d"].split()[0], format="%m/%d/%Y"),
+                     "release": pd.to_datetime(stamp.split()[0], format="%m/%d/%Y"),
                      "speaker": htmllib.unescape(item.get("s", ""))})
-    return pd.DataFrame(rows, columns=["url", "release", "speaker"])
+    return pd.DataFrame(rows, columns=["url", "release", "speaker"]), skipped
 
 
 def parse_old_speech_list(page: str) -> pd.DataFrame:
@@ -118,26 +165,16 @@ def parse_old_speech_list(page: str) -> pd.DataFrame:
 
 
 def fetch_speeches() -> tuple[pd.DataFrame, int]:
-    listing = [parse_speech_json(get(SPEECH_JSON, cache=False))]
+    first, skipped = parse_speech_json(get(SPEECH_JSON, cache=False))
+    listing = [first]
     for year in range(1996, 2006):
         try:
             listing.append(parse_old_speech_list(get(OLD_SPEECH_LIST.format(year))))
         except FileNotFoundError:
             continue
     listing = pd.concat(listing, ignore_index=True).drop_duplicates("url")
-    rows, dropped = [], 0
-    for r in listing.itertuples():
-        try:
-            text = _text(r.url)
-        except FileNotFoundError:
-            dropped += 1
-            continue
-        if len(text) < config.MIN_DOC_CHARS:
-            dropped += 1
-            continue
-        rows.append({"doc_id": _doc_id("speech", r.release, r.url), "type": "speech",
-                     "speaker": r.speaker, "release": r.release, "text": text})
-    return pd.DataFrame(rows, columns=DOC_COLS), dropped
+    docs, dropped = _make_docs(((r.url, r.release, r.speaker, None) for r in listing.itertuples()), "speech")
+    return docs, dropped + skipped
 
 
 def coverage(docs: pd.DataFrame) -> pd.DataFrame:
@@ -162,6 +199,10 @@ def build_corpus(refresh: bool = False) -> pd.DataFrame:
         parts.append(docs)
         dropped[kind] = n
         print(f"{kind:9s} kept {len(docs):5d} dropped {n}", flush=True)
+    beige, n = fetch_beige_archive()
+    parts.append(beige)
+    dropped["beige"] += n
+    print(f"beige archive kept {len(beige):5d} dropped {n}", flush=True)
     speeches, n = fetch_speeches()
     parts.append(speeches)
     dropped["speech"] = n

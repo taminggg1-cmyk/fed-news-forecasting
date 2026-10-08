@@ -20,10 +20,47 @@ def test_split_sentences_keeps_reasonable_lengths():
         "The Committee decided to raise the target range for the federal funds rate."]
 
 
-def test_beige_release_matches_url_month():
-    text = "Last Update: December 3, 2018 ... Beige Book January 16, 2019 Summary"
-    assert corpus.beige_release(text, T("2019-01-01")) == T("2019-01-16")
-    assert pd.isna(corpus.beige_release("no dates here", T("2019-01-01")))
+ARCHIVE_2012 = """<table><thead><tr><th class="alternate" colspan="4" id="year">2012</th></tr></thead><tbody>
+<tr class="odd"><td>January 11</td>
+<td><a href="https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201201.htm">HTML</a> | <a href="https://www.federalreserve.gov/monetarypolicy/beigebook/files/fullreport20120111.pdf">PDF</a></td></tr>
+<tr class="even"><td>February 29</td>
+<td><a href="https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201202.htm">HTML</a> | <a href="https://www.federalreserve.gov/monetarypolicy/beigebook/files/fullreport20120229.pdf">PDF</a></td></tr>
+<tr><td>Sometime soon</td><td><a href="/x.htm">HTML</a></td></tr>
+<tr><td>March 7</td><td><a href="/monetarypolicy/files/BeigeBook_20120307.pdf">PDF</a></td></tr>
+</tbody></table>"""
+
+
+def test_parse_beige_archive_uses_row_date_and_html_link():
+    frame = corpus.parse_beige_archive(ARCHIVE_2012, 2012)
+    assert frame["release"].tolist() == [T("2012-01-11"), T("2012-02-29"), T("2012-03-07")]
+    assert frame["url"].tolist() == [
+        "https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201201.htm",
+        "https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201202.htm",
+        "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20120307.pdf"]
+    assert frame.attrs["skipped"] == 1
+
+
+def test_calendar_beige_keeps_only_1994_95_pdfs(monkeypatch):
+    base = "https://www.federalreserve.gov/monetarypolicy/"
+    cal = pd.DataFrame([
+        {"kind": "beige", "date": T("1995-01-18"), "release": T("1995-01-18"),
+         "url": base + "files/fomc19950201beige19950118.pdf"},
+        {"kind": "beige", "date": T("2017-01-01"), "release": T("2017-01-09"),
+         "url": base + "beigebook201701.htm"}])
+    seen = []
+    monkeypatch.setattr(corpus, "_fetch_text", lambda url, d=None: seen.append(url) or "word " * 200)
+    docs, dropped = corpus.docs_from_calendar(cal, "beige")
+    assert docs["release"].tolist() == [T("1995-01-18")] and dropped == 0 and len(seen) == 1
+
+
+def test_corrupt_pdf_is_dropped_not_fatal(monkeypatch):
+    from pypdf.errors import PdfReadError
+
+    def boom(url, **k):
+        raise PdfReadError("bad")
+    monkeypatch.setattr(corpus, "get", boom)
+    docs, dropped = corpus._make_docs([("http://x/a.pdf", T("2005-01-01"), "", None)], "speech")
+    assert dropped == 1 and docs.empty
 
 
 def test_minutes_without_release_are_dropped(monkeypatch):
@@ -39,12 +76,20 @@ def test_minutes_without_release_are_dropped(monkeypatch):
 
 
 def test_parse_speech_json():
-    raw = ('﻿[{"d":"10/8/2026 4:30:00 AM","t":"Title","s":"Governor A &amp; B",'
+    raw = ('\ufeff[{"d":"10/8/2026 4:30:00 AM","t":"Title","s":"Governor A &amp; B",'
            '"l":"/newsevents/speech/waller20261008a.htm"}]')
-    frame = corpus.parse_speech_json(raw)
+    frame, skipped = corpus.parse_speech_json(raw)
+    assert skipped == 0
     assert frame.loc[0, "release"] == T("2026-10-08")
     assert frame.loc[0, "speaker"] == "Governor A & B"
     assert frame.loc[0, "url"].endswith("/newsevents/speech/waller20261008a.htm")
+
+
+def test_parse_speech_json_date_only_and_missing_fields():
+    raw = ('[{"d":"11/28/2006","s":"X","l":"/newsevents/speech/a.htm"},'
+           '{"s":"Y","l":"/newsevents/speech/b.htm"},{"d":"1/2/2007"},{"updateDate":"x"}]')
+    frame, skipped = corpus.parse_speech_json(raw)
+    assert frame["release"].tolist() == [T("2006-11-28")] and skipped == 3
 
 
 def test_parse_old_speech_list():
@@ -66,5 +111,20 @@ def test_check_coverage_raises_on_missing_year():
 
 @pytest.mark.network
 def test_live_speech_json_is_parseable():
-    frame = corpus.parse_speech_json(corpus.get(corpus.SPEECH_JSON, cache=False))
-    assert len(frame) > 500 and frame["release"].min() < T("2008-01-01")
+    frame, skipped = corpus.parse_speech_json(corpus.get(corpus.SPEECH_JSON, cache=False))
+    assert skipped >= 0 and len(frame) > 500 and frame["release"].min() < T("2008-01-01")
+
+
+@pytest.mark.network
+@pytest.mark.parametrize("year", [2012, 2023])
+def test_live_beige_archive_has_eight_rows(year):
+    frame = corpus.parse_beige_archive(corpus.get(corpus.BEIGE_ARCHIVE.format(year), cache=False), year)
+    assert len(frame) == 8 and (frame["release"].dt.year == year).all()
+
+
+def test_parse_beige_archive_date_and_links_in_one_cell():
+    html = ('<tr><th id="year">2024</th></tr><tr><td>January 17: <a href="/monetarypolicy/'
+            'beigebook202401-summary.htm">HTML</a> | <a href="/x/BeigeBook_20240117.pdf">PDF</a></td></tr>')
+    frame = corpus.parse_beige_archive(html, 2024)
+    assert frame["release"].tolist() == [T("2024-01-17")]
+    assert frame["url"].tolist() == ["https://www.federalreserve.gov/monetarypolicy/beigebook202401-summary.htm"]
