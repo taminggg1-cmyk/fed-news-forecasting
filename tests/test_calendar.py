@@ -11,6 +11,8 @@ SNIPPET = """
 <a href="/monetarypolicy/fomcpresconf20220126.htm">Press Conference</a>
 <a href="/newsevents/pressreleases/monetary20220126a.htm">Statement</a>
 <a href="/monetarypolicy/beigebook202201.htm">Beige Book</a>
+<a href="/monetarypolicy/files/fomcminutes20080625.pdf">Minutes</a> Released July 15, 2008
+<a href="/newsevents/press/monetary/20081216b.htm">Statement</a>
 <a href="/fomc/MINUTES/1994/19940204min.htm">Minutes</a> Released March 25, 1994
 """
 
@@ -21,6 +23,7 @@ def test_parse_finds_every_kind_with_dates():
     assert ("minutes", "20050202") in got and ("minutes", "20220126") in got
     assert ("minutes", "19940204") in got and ("statement", "20050202") in got
     assert ("statement", "20220126") in got and ("presconf", "20220126") in got
+    assert ("minutes", "20080625") in got and ("statement", "20081216") in got
     assert ("beige", "20050119") in got and ("beige", "20220101") in got
 
 

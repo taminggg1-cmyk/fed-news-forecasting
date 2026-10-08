@@ -18,11 +18,12 @@ HISTORICAL = BASE + "/monetarypolicy/fomchistorical{}.htm"
 CURRENT = BASE + "/monetarypolicy/fomccalendars.htm"
 
 PATTERNS = {
-    "statement": [r"/newsevents/pressreleases/monetary(\d{8})a\.htm",
-                  r"/newsevents/press/monetary/(\d{8})a\.htm",
+    "statement": [r"/newsevents/pressreleases/monetary(\d{8})[a-z]\.htm",
+                  r"/newsevents/press/monetary/(\d{8})[a-z]\.htm",
                   r"/boarddocs/press/(?:monetary|general)/\d{4}/(\d{8})/"],
     "minutes": [r"/fomc/MINUTES/\d{4}/(\d{8})min\.htm", r"/fomc/minutes/(\d{8})\.htm",
-                r"/monetarypolicy/fomcminutes(\d{8})\.htm"],
+                r"/monetarypolicy/fomcminutes(\d{8})\.htm",
+                r"/monetarypolicy/files/fomcminutes(\d{8})\.pdf"],
     "presconf": [r"/monetarypolicy/fomcpresconf(\d{8})\.htm"],
     "beige": [r"/monetarypolicy/files/fomc\d{8}beige(\d{8})\.pdf",
               r"/fomc/beigebook/\d{4}/(\d{8})/default\.htm",

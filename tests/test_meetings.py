@@ -19,7 +19,7 @@ def target(changes, start="2005-01-01", end="2005-04-30", level=2.0):
 
 
 def test_two_day_meeting_is_merged_and_classified():
-    c = cal([("minutes", "2005-02-01"), ("statement", "2005-02-02"), ("minutes", "2005-03-22")])
+    c = cal([("minutes", "2005-02-01"), ("minutes", "2005-02-02"), ("minutes", "2005-03-22")])
     m = meetings.build_meetings(c, target([("2005-02-02", 2.25)]))
     assert list(m.index) == [T("2005-02-02"), T("2005-03-22")]
     assert m.loc["2005-02-02", "y_class"] == 2 and m.loc["2005-03-22", "y_class"] == 1
@@ -42,3 +42,17 @@ def test_sunday_unscheduled_cut():
     assert m.loc["2020-03-15", "target_before"] == pytest.approx(1.125)
     assert m.loc["2020-03-15", "target_after"] == pytest.approx(0.125)
     assert m.loc["2020-03-15", "unscheduled"] == 1
+
+
+def test_statement_only_date_is_not_a_meeting():
+    c = cal([("minutes", "2005-02-02"), ("statement", "2005-03-10"), ("minutes", "2005-03-22")])
+    m = meetings.build_meetings(c, target([]))
+    assert T("2005-03-10") not in m.index
+    assert list(m.index) == [T("2005-02-02"), T("2005-03-22")]
+
+
+def test_unscheduled_move_uses_statement_date():
+    c = cal([("minutes", "2005-02-02"), ("statement", "2005-03-01"), ("minutes", "2005-03-22")])
+    m = meetings.build_meetings(c, target([("2005-03-02", 1.75)]))
+    assert T("2005-03-01") in m.index and T("2005-03-02") not in m.index
+    assert m.loc["2005-03-01", "unscheduled"] == 1
