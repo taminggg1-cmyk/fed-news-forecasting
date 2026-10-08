@@ -1,16 +1,81 @@
+import pandas as pd
 import pytest
 
-from fed_news import labels
+from fed_news import config, labels
+
+S1 = "The committee decided to keep the target range unchanged this quarter."
+S2 = "Inflation pressures warrant a further tightening of monetary policy soon."
+S3 = "Participants noted that labor market conditions remained quite strong overall."
+
+
+def _corpus(rows):
+    df = pd.DataFrame(rows, columns=["doc_id", "type", "release", "text"])
+    df["release"] = pd.to_datetime(df["release"])
+    return df
+
+
+def _labs(*sents, source="tdw"):
+    return pd.DataFrame({"sentence": list(sents), "label": 0, "raw_year": 1999,
+                         "source": source})
+
+
+def test_date_labels_earliest_release_normalisation_and_drop():
+    corpus = _corpus([
+        ("late", "minutes", "2005-05-01", f"Intro text here. {S1} More."),
+        ("early", "statement", "2001-02-01", f"{S1} Other text that is long enough here."),
+        ("skip", "beige", "1990-01-01", S3),
+    ])
+    lab = _labs("  THE committee decided to keep   the target range unchanged this quarter. ",
+                S2, S3)
+    out = labels.date_labels(lab, corpus)
+    assert list(out["sentence"]) == [labels._norm(lab["sentence"][0])]
+    assert out["release"].iloc[0] == pd.Timestamp("2001-02-01")
+    assert out["year"].iloc[0] == 2001
+    assert list(out.columns) == ["sentence", "label", "release", "source", "year"]
+
+
+def test_date_labels_substring_fallback():
+    # label is a fragment that sentence splitting does not isolate
+    frag = "keep the target range unchanged this quarter"
+    corpus = _corpus([("a", "speech", "2003-01-01", S1), ("b", "speech", "2002-01-01", S1)])
+    out = labels.date_labels(_labs(frag), corpus)
+    assert out["release"].iloc[0] == pd.Timestamp("2002-01-01")
+
+
+def test_load_labels_raises_below_match_rate(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    raw = _labs(S1, S2, S3, "unmatched one", "unmatched two")
+    monkeypatch.setattr(labels, "_load_raw", lambda: raw)
+    monkeypatch.setattr(labels, "build_corpus",
+                        lambda: _corpus([("a", "statement", "2001-02-01", f"{S1} {S2} {S3}")]))
+    with pytest.raises(ValueError, match="matched"):
+        labels.load_labels()
+    assert not (tmp_path / "labels.pkl").exists()
+
+
+def test_load_labels_caches_when_rate_ok(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    raw = pd.concat([_labs(S1, S2), _labs(S3, source="wcb")], ignore_index=True)
+    monkeypatch.setattr(labels, "_load_raw", lambda: raw)
+    monkeypatch.setattr(labels, "build_corpus",
+                        lambda: _corpus([("a", "statement", "2001-02-01", f"{S1} {S2} {S3}")]))
+    out = labels.load_labels()
+    assert len(out) == 3 and (tmp_path / "labels.pkl").exists()
+    assert set(out["year"]) == {2001}
 
 
 @pytest.mark.network
-def test_labels_load_and_tdw_mapping_is_hawkish_for_tightening():
-    lab = labels.load_labels(refresh=True)
-    assert set(lab["label"]) == {0, 1, 2}
-    assert lab["sentence"].is_unique
-    assert (lab["sentence"] == lab["sentence"].str.lower()).all()
-    tdw = lab[lab["source"] == "tdw"]
-    assert len(tdw) > 2000
+def test_real_tdw_match_rate_and_mapping():
+    corpus_path = config.DATA / "corpus.pkl"
+    if not corpus_path.exists():
+        pytest.skip("corpus.pkl not built")
+    from fed_news.corpus import build_corpus
+    raw = labels._load_raw()
+    assert set(raw["label"]) == {0, 1, 2}
+    assert (raw["sentence"] == raw["sentence"].str.lower()).all()
+    dated = labels.date_labels(raw, build_corpus())
+    for source in ("tdw", "wcb"):
+        assert (dated["source"] == source).sum() / (raw["source"] == source).sum() >= 0.9
+    tdw = dated[dated["source"] == "tdw"]
     tight = tdw[tdw["sentence"].str.contains(r"\btighten", regex=True)]
     assert tight["label"].mode().iloc[0] == labels.LABELS["hawkish"]
-    assert lab["year"].min() <= 1997
