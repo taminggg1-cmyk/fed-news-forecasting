@@ -6,6 +6,9 @@ every sentence of that year's statements, minutes, press conferences and speeche
 stance = P(hawkish) - P(dovish); document stance = mean over its sentences. Models are not
 saved (disk); per-year results are, so an interrupted run resumes.
 """
+import hashlib
+import os
+
 import numpy as np
 import pandas as pd
 import torch
@@ -14,7 +17,7 @@ from transformers import AutoModel, AutoTokenizer
 
 from fed_news import config
 from fed_news.corpus import build_corpus, split_sentences
-from fed_news.labels import load_labels
+from fed_news.labels import LABELS, load_labels
 
 STANCE_TYPES = ("statement", "minutes", "presconf", "speech")
 
@@ -94,6 +97,25 @@ def _sentence_table(docs: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["doc_id", "sentence"])
 
 
+def _fingerprint(train: pd.DataFrame, holdout: pd.DataFrame, cyear: int, doc_ids: list[str]) -> dict:
+    def digest(items) -> str:
+        return hashlib.sha1("\n".join(map(str, items)).encode()).hexdigest()
+    return {"vintage": vintage_year(cyear), "seeds": tuple(config.STANCE_SEEDS),
+            "lr": config.STANCE_LR, "epochs": config.STANCE_EPOCHS,
+            "batch": config.STANCE_BATCH, "maxlen": config.STANCE_MAXLEN,
+            "holdout_frac": config.STANCE_HOLDOUT, "n_train": len(train),
+            "n_holdout": len(holdout),
+            "labels": digest(sorted(zip(train["sentence"], train["label"]))
+                             + sorted(zip(holdout["sentence"], holdout["label"]))),
+            "docs": digest(sorted(doc_ids))}
+
+
+def _write_part(part, obj) -> None:
+    tmp = part.with_name(part.name + ".tmp")
+    pd.to_pickle(obj, tmp)
+    os.replace(tmp, part)
+
+
 def run_stance() -> pd.DataFrame:
     labels, corpus = load_labels(), build_corpus()
     docs = corpus[corpus["type"].isin(STANCE_TYPES)].copy()
@@ -103,13 +125,29 @@ def run_stance() -> pd.DataFrame:
     acc_rows, all_sent = [], []
     for cyear in sorted(docs["cyear"].unique()):
         part = parts_dir / f"{cyear}.pkl"
+        ydocs = docs[docs["cyear"] == cyear]
+        pool = eligible(labels, cyear)
+        hold = np.random.default_rng(0).random(len(pool)) < config.STANCE_HOLDOUT
+        train, holdout = pool[~hold], pool[hold]
+        if set(train["label"]) != set(LABELS.values()) or len(holdout) == 0:
+            raise ValueError(f"cyear {cyear}: train must contain all 3 labels and holdout must be "
+                             f"non-empty (train labels {sorted(set(train['label']))}, "
+                             f"holdout n={len(holdout)})")
+        fp = _fingerprint(train, holdout, cyear, list(ydocs["doc_id"]))
+        cached = None
         if part.exists():
-            sent, acc = pd.read_pickle(part)
+            loaded = pd.read_pickle(part)
+            old = loaded[2] if len(loaded) == 3 else {}
+            changed = [k for k in fp if old.get(k) != fp[k]]
+            if changed:
+                print(f"{cyear}: cached part stale, recomputing (changed: {', '.join(changed)})",
+                      flush=True)
+            else:
+                cached = loaded
+        if cached is not None:
+            sent, acc, _ = cached
         else:
-            pool = eligible(labels, cyear)
-            hold = np.random.default_rng(0).random(len(pool)) < config.STANCE_HOLDOUT
-            train, holdout = pool[~hold], pool[hold]
-            sent = _sentence_table(docs[docs["cyear"] == cyear])
+            sent = _sentence_table(ydocs)
             texts = list(holdout["sentence"]) + list(sent["sentence"])
             probs = np.mean([train_and_score(train, texts, vintage_year(cyear), seed)
                              for seed in config.STANCE_SEEDS], axis=0)
@@ -122,14 +160,20 @@ def run_stance() -> pd.DataFrame:
                    "macro_f1": float(f1)}
             sp = probs[len(holdout):]
             sent = sent.assign(stance=sp[:, 1] - sp[:, 0])
-            pd.to_pickle((sent, acc), part)
+            _write_part(part, (sent, acc, fp))
         acc_rows.append(acc)
         all_sent.append(sent)
         print(acc, flush=True)
     sentences = pd.concat(all_sent, ignore_index=True)
-    doc_stance = (sentences.groupby("doc_id")["stance"].agg(["mean", "size"])
-                  .rename(columns={"mean": "stance", "size": "n_sent"}).reset_index())
-    doc_stance = doc_stance.merge(docs[["doc_id", "type", "release"]], on="doc_id")
+    agg = (sentences.groupby("doc_id")["stance"].agg(["mean", "size"])
+           .rename(columns={"mean": "stance", "size": "n_sent"}).reset_index())
+    doc_stance = docs[["doc_id", "type", "release"]].merge(agg, on="doc_id", how="left")
+    doc_stance["n_sent"] = doc_stance["n_sent"].fillna(0).astype(int)
+    empty = doc_stance[doc_stance["n_sent"] == 0]
+    if len(empty):
+        print("documents with zero sentences (kept, stance NaN):", flush=True)
+        print(empty.groupby(["type", empty["release"].dt.year]).size().to_string(), flush=True)
+    doc_stance = doc_stance.sort_values(["release", "doc_id"]).reset_index(drop=True)
     doc_stance.to_pickle(config.DATA / "doc_stance.pkl")
     pd.DataFrame(acc_rows).to_csv(config.RESULTS / "stance_accuracy.csv", index=False)
     return doc_stance
