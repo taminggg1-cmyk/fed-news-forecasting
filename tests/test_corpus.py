@@ -158,3 +158,12 @@ def test_live_current_beige_page_has_this_years_books():
     year = pd.Timestamp.today().year
     frame = corpus.parse_beige_archive(corpus.get(corpus.BEIGE_CURRENT, cache=False), year)
     assert len(frame) >= 6 and (frame["release"].dt.year == year).all()
+
+
+def test_parse_old_speech_list_flat_file_links():
+    page = ('<a href="/boarddocs/speeches/1999/19991215.htm">x</a>'
+            '<a href="http://www.federalreserve.gov/boarddocs/speeches/1999/199910282.htm">y</a>'
+            '<a href="/boarddocs/speeches/2002/20021121/default.htm">z</a>')
+    frame = corpus.parse_old_speech_list(page)
+    assert frame["release"].tolist() == [T("1999-12-15"), T("1999-10-28"), T("2002-11-21")]
+    assert frame["url"].tolist()[1] == "https://www.federalreserve.gov/boarddocs/speeches/1999/199910282.htm"

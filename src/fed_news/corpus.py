@@ -26,7 +26,7 @@ PRESCONF_PDF = BASE + "/mediacenter/files/FOMCpresconf{:%Y%m%d}.pdf"
 SPEECH_JSON = BASE + "/json/ne-speeches.json"
 OLD_SPEECH_LIST = BASE + "/newsevents/speech/{}speech.htm"
 OLD_SPEECH_LINK = re.compile(
-    r'href="((?:https?://www\.federalreserve\.gov)?/boarddocs/speeches/\d{4}/(\d{8})\d*/default\.htm)"', re.I)
+    r'href="((?:https?://www\.federalreserve\.gov)?/boarddocs/speeches/\d{4}/(\d{8})\d*(?:/default)?\.htm)"', re.I)
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
 BEIGE_ARCHIVE = BASE + "/monetarypolicy/beigebook{}.htm"
 BEIGE_CURRENT = BASE + "/monetarypolicy/publications/beige-book-default.htm"
