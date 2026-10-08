@@ -75,7 +75,7 @@ def test_real_tdw_match_rate_and_mapping():
     assert (raw["sentence"] == raw["sentence"].str.lower()).all()
     dated = labels.date_labels(raw, build_corpus())
     for source in ("tdw", "wcb"):
-        assert (dated["source"] == source).sum() / (raw["source"] == source).sum() >= 0.9
+        assert (dated["source"] == source).sum() / (raw["source"] == source).sum() >= labels.MIN_MATCH_RATE
     tdw = dated[dated["source"] == "tdw"]
     tight = tdw[tdw["sentence"].str.contains(r"\btighten", regex=True)]
     assert tight["label"].mode().iloc[0] == labels.LABELS["hawkish"]
@@ -98,3 +98,9 @@ def test_stale_pickle_without_release_triggers_rebuild(monkeypatch, tmp_path):
     out = labels.load_labels()
     assert "release" in out.columns and set(out["year"]) == {2001}
     assert "release" in pd.read_pickle(tmp_path / "labels.pkl").columns
+
+
+def test_norm_maps_entities_quotes_dashes_spaces():
+    assert labels._norm("Fed&#8217;s  “goal”—price–stability now ok") \
+        == "fed's \"goal\"-price-stability now ok"
+    assert labels._norm("a &amp; b\n\tc") == "a & b c"

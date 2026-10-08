@@ -7,7 +7,9 @@ splits of the same sentences, so one config's train+val+test is the full set).
 Each sentence is dated by the earliest corpus document containing it (the datasets' own year
 fields are not document years; spec section 5), so eligibility is lookahead-free.
 """
+import html
 import io
+import unicodedata
 
 import pandas as pd
 
@@ -16,7 +18,7 @@ from fed_news.corpus import build_corpus, split_sentences
 from fed_news.http import get
 
 LABEL_TYPES = ("statement", "minutes", "presconf", "speech")
-MIN_MATCH_RATE = 0.9
+MIN_MATCH_RATE = 0.85
 MIN_FALLBACK_CHARS = 40
 DATED_COLUMNS = ["sentence", "label", "release", "source", "year"]
 LABELS = {"dovish": 0, "hawkish": 1, "neutral": 2}
@@ -25,8 +27,17 @@ WCB = ("https://huggingface.co/datasets/gtfintechlab/federal_reserve_system/reso
        "5768/{}-00000-of-00001.parquet")
 
 
+_CHAR_MAP = {**{c: "'" for c in "\u2018\u2019\u201a\u201b\u2032"},
+             **{c: '"' for c in "\u201c\u201d\u201e\u201f\u2033"},
+             **{c: "-" for c in "\u2013\u2014\u2012\u2015\u2212"}}
+
+
 def _norm(text: str) -> str:
-    return " ".join(str(text).split()).lower()
+    """Normalise for matching: unescape HTML, ASCII quotes/dashes, unicode spaces -> space,
+    collapse whitespace, lowercase."""
+    text = html.unescape(str(text))
+    text = "".join(" " if unicodedata.category(c) == "Zs" else _CHAR_MAP.get(c, c) for c in text)
+    return " ".join(text.split()).lower()
 
 
 def _load_raw() -> pd.DataFrame:
