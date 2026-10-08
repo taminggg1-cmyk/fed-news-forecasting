@@ -32,8 +32,19 @@ PATTERNS = {
 RELEASED = re.compile(r"Released\s+([A-Z][a-z]+\.?\s+\d{1,2},\s+\d{4})")
 
 
-def _release_after(html: str, end: int, date: pd.Timestamp) -> pd.Timestamp:
-    found = RELEASED.search(html, end, end + 800)
+BLOCK_OPEN = re.compile(r"<(?:p|div)[\s>]", re.I)
+BLOCK_CLOSE = re.compile(r"</(?:p|div)>", re.I)
+
+
+def _release_after(html: str, start: int, end: int, date: pd.Timestamp) -> pd.Timestamp:
+    """Release date of the minutes link at html[start:end], read only from the enclosing
+    <p>/<div> block (the date sits before, after or beside the links depending on the page
+    era). Never borrows a date from a neighbouring block."""
+    opens = [m.start() for m in BLOCK_OPEN.finditer(html, 0, start)]
+    close = BLOCK_CLOSE.search(html, end)
+    if not opens or not close:
+        return pd.NaT
+    found = RELEASED.search(html[opens[-1]:close.end()])
     if not found:
         return pd.NaT
     release = pd.Timestamp(pd.to_datetime(found.group(1).replace(".", "")))
@@ -51,7 +62,7 @@ def parse_calendar_html(html: str) -> pd.DataFrame:
                 url = BASE + path + ("default.htm" if path.endswith("/") else "")
                 date = pd.to_datetime(raw, format="%Y%m%d" if len(raw) == 8 else "%Y%m")
                 if kind == "minutes":
-                    release = _release_after(html, match.end(), date)
+                    release = _release_after(html, match.start(), match.end(), date)
                 elif kind == "beige" and len(raw) == 6:
                     release = pd.NaT
                 else:
