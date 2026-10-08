@@ -23,6 +23,9 @@ def metrics(preds: pd.DataFrame) -> dict:
 
 
 def decide(main_p, placebo_p, alpha: float = config.ALPHA) -> str:
+    for p in main_p + placebo_p:
+        if np.isnan(p):
+            raise ValueError(f"NaN p-value in decision inputs")
     if any(p < alpha for p in placebo_p):
         return "void"
     return "supported" if all(p < alpha for p in main_p) else "not supported"
@@ -45,6 +48,13 @@ def _correct(p):
 
 
 def _three_tests(t1, t2, new):
+    # Check T1 dates match
+    if not t1["S"]["date"].equals(t1[new]["date"]):
+        raise ValueError(f"prediction dates differ: {new} vs S")
+    # Check T2 dates match
+    if not t2["S"]["date"].equals(t2[new]["date"]):
+        raise ValueError(f"prediction dates differ: {new} vs S")
+
     p1 = dm_hln(_sq(t1["S"]), _sq(t1[new]))[1]
     p2 = dm_hln(_sq(t2["S"]), _sq(t2[new]))[1]
     p3 = mcnemar_greater(_correct(t2["S"]), _correct(t2[new]))[2]
