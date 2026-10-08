@@ -37,19 +37,22 @@ def beige_tones(corpus: pd.DataFrame) -> pd.Series:
 
 def _latest_before(series: pd.Series, cutoff: pd.Timestamp) -> float:
     sub = series[series.index < cutoff]
-    return float(sub.iloc[-1]) if len(sub) else np.nan
+    return float(sub.sort_index().iloc[-1]) if len(sub) else np.nan
 
 
 def build_text_features(rows: pd.DataFrame, stance: pd.DataFrame, beige: pd.Series,
                         idx: pd.DataFrame) -> pd.DataFrame:
+    if not rows.index.is_monotonic_increasing:
+        raise ValueError("rows must be in chronological order (ffill/diff depend on it)")
     out = pd.DataFrame(index=rows.index)
+    log_gpr, log_epu = np.log(idx["gpr"]), np.log(idx["epu"])
     out["n_stance"] = pd.Series([fed_stance(stance, s, c) for s, c in zip(rows["win_start"], rows["cutoff"])],
                                 index=rows.index).ffill()
     out["n_stance_chg"] = out["n_stance"].diff()
     out["n_beige"] = [_latest_before(beige, c) for c in rows["cutoff"]]
     out["n_news"] = [window_mean(idx["news"], c) for c in rows["cutoff"]]
-    out["n_gpr"] = [window_mean(np.log(idx["gpr"]), c) for c in rows["cutoff"]]
-    out["n_epu"] = [window_mean(np.log(idx["epu"]), c) for c in rows["cutoff"]]
+    out["n_gpr"] = [window_mean(log_gpr, c) for c in rows["cutoff"]]
+    out["n_epu"] = [window_mean(log_epu, c) for c in rows["cutoff"]]
     return out[N_COLS]
 
 

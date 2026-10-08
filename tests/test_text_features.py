@@ -50,3 +50,35 @@ def test_beige_is_latest_strictly_before_cutoff():
 def test_lm_tone_sign():
     assert tf.lm_tone("Growth was strong and conditions improved, a positive gain.") > 0
     assert tf.lm_tone("Losses worsened and conditions were weak, with severe declines.") < 0
+
+
+def _idx():
+    return pd.DataFrame({"news": 0.1, "gpr": 100.0, "epu": 50.0}, index=pd.date_range("2019-11-01", "2020-01-31"))
+
+
+def test_rows_must_be_chronological():
+    rows = pd.DataFrame({"win_start": [T("2020-01-11"), T("2020-01-05")],
+                         "cutoff": [T("2020-01-20"), T("2020-01-10")]},
+                        index=[T("2020-01-21"), T("2020-01-11")])
+    with pytest.raises(ValueError):
+        tf.build_text_features(rows, stance_docs(), pd.Series([0.2], index=[T("2019-12-01")]), _idx())
+
+
+def test_beige_unsorted_series_uses_latest_release():
+    rows = pd.DataFrame({"win_start": [T("2020-01-01")], "cutoff": [T("2020-01-15")]}, index=[T("2020-01-16")])
+    beige = pd.Series([0.9, 0.2, 0.5], index=[T("2020-01-10"), T("2019-12-01"), T("2020-01-15")])
+    out = tf.build_text_features(rows, stance_docs(), beige, _idx())
+    assert out["n_beige"].iloc[0] == pytest.approx(0.9)
+
+
+def test_nan_stance_docs_are_skipped_and_all_nan_window_carries_forward():
+    docs = pd.DataFrame({
+        "release": [T("2020-01-05"), T("2020-01-06"), T("2020-01-12"), T("2020-01-13")],
+        "type": ["statement", "statement", "speech", "minutes"],
+        "stance": [0.4, np.nan, np.nan, np.nan],
+    })
+    rows = pd.DataFrame({"win_start": [T("2020-01-05"), T("2020-01-11")],
+                         "cutoff": [T("2020-01-10"), T("2020-01-20")]},
+                        index=[T("2020-01-11"), T("2020-01-21")])
+    out = tf.build_text_features(rows, docs, pd.Series([0.2], index=[T("2019-12-01")]), _idx())
+    assert out["n_stance"].tolist() == pytest.approx([0.4, 0.4])
