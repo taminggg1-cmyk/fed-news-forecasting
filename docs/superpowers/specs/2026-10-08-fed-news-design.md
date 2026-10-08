@@ -81,10 +81,12 @@ starts in 1998). Rows dated 1994-1999 are only ever training rows.
 - Target: the federal funds target set at the meeting, as the midpoint of the target range
   (`DFEDTAR` spliced to the `DFEDTARL`/`DFEDTARU` midpoint, reusing `fedfunds_gpt2`).
 - Class label: cut / hold / hike from the sign of the change.
-- Meeting set: every scheduled and unscheduled meeting from February 1994, built with the
-  `fedfunds_gpt2/src/build_meetings.py` logic; from September 1998 it is identical to
-  `fedfunds_gpt2/data/meetings.pkl`.
-- Cutoff: inputs dated strictly before the first day of the meeting.
+- Meeting set: the union of minutes-link dates and statement dates on the Fed's calendar pages
+  from 1994 (dates within two days merged to the later one), plus any target change more than
+  three days after every such date (an unscheduled move). From 2000, when the FOMC began issuing
+  a statement after every meeting, it matches `fedfunds_gpt2/data/meetings.pkl`.
+- Cutoff: inputs dated strictly before the first day of the meeting, implemented as the day
+  before the decision date (exact for two-day meetings, one day conservative for one-day ones).
 - Primary test window: meetings from January 2001 to the latest meeting (about 210 meetings).
   Comparison window: the paper's January 2016 to April 2025.
 - Metrics: MSE, RMSE, MAE, MBE on the rate, plus accuracy and macro-F1 on the class.
@@ -101,6 +103,9 @@ and nonsupervisory workers, nominal GDP, U-6, FHFA purchase-only house prices, 1
 1y-6m slope, with the paper's transformations. The Green Street commercial property index has
 no free equivalent and is dropped; the CRB spot index is replaced by `PPIACO`, as in
 `fedfunds_gpt2`.
+
+Average weekly earnings of production and nonsupervisory workers is FRED `CES0500000030`. ALFRED
+is read through the FRED API, which needs a free API key from the user.
 
 Real-time rule: each value is the latest ALFRED vintage released strictly before the cutoff.
 Where ALFRED has no vintage for a date, the earliest available vintage is used with the release
@@ -125,9 +130,12 @@ spreads to the standing target, target level, zero-lower-bound flag), VIX, and W
 | Economic Policy Uncertainty, daily (Baker, Bloom and Davis) | newspaper-based policy uncertainty, daily since 1985 | policyuncertainty.com |
 | Guardian headlines (H2f only) | headline and trail text from the business, us-news and world sections, filtered by a fixed keyword list (Fed, interest rates, inflation, jobs, recession, banks, oil, war, sanctions, tariffs, terrorism, pandemic), 1999 onward | Guardian Open Platform; key in `gold_gpt2/secrets/guardian_key.txt`; reuse `gold_gpt2/src/fetch_guardian.py` |
 
-Every document carries a date. Trillion Dollar Words labelled sentences are dated by exact text
-match to their source document; sentences that do not match are dropped from classifier
-training. Regional Reserve Bank presidents' speeches are out of scope (Section 13).
+Every document carries a date. Trillion Dollar Words labelled sentences (2,480) carry a `year`
+field in the published dataset, so the classifier for year y trains on labels with year < y. The
+1,000 Federal Reserve sentences of the World Central Banks dataset
+(`gtfintechlab/federal_reserve_system`, CC BY-NC-SA 4.0), which use the same three stance labels
+and also carry a year, are added to the label pool; duplicate sentences are removed. Regional
+Reserve Bank presidents' speeches are out of scope (Section 13).
 
 ## 6. Primary text features
 
@@ -153,7 +161,7 @@ Sentence stance is `P(hawkish) - P(dovish)`. Document stance is the mean over it
 
 | | feature | T2 definition (window: since the previous meeting's start date) | T1 definition |
 |---|---|---|---|
-| F1 | Fed stance | mean of three group means: statement plus press conference, minutes, speeches (empty groups skipped) | same, over month t-1; carried forward if month t-1 has no documents |
+| F1 | Fed stance | mean of three group means: statement plus press conference, minutes, speeches (empty groups skipped); carried forward if the window has no documents | same, over month t-1; carried forward if month t-1 has no documents |
 | F2 | stance change | F1 minus F1 of the previous meeting | F1(t-1) minus F1(t-2) |
 | F3 | Beige Book tone | Loughran-McDonald net tone `(pos - neg) / (pos + neg)` of the latest Beige Book before the cutoff | same, as of the end of month t-1 |
 | F4 | newspaper sentiment | SF Fed index, mean over the 30 days ending three days before the cutoff | same, ending three days before the end of month t-1 |
@@ -288,6 +296,11 @@ Python: the CUDA virtual environment at `D:/gold_lm/venv`.
 
 Shared pieces: `config.py` (paths, windows, seeds, grids), `models.py` (ordered logit, ridge
 wrapper, RNNs, TFT and hybrid wrappers), `stats_tests.py` (DM-HLN, McNemar, Holm).
+
+The implementation plans fix the final module names (for example `alfred.py` for step 1 and
+`fomc_calendar.py` plus `corpus.py` for step 3); the step order above is unchanged. Plan 1 covers
+H1 with rows 0, 3-5, 8 and 9; Plan 2 the neural rows (2, 6, 7); Plan 3 the language-model
+analyses (H2b, H2e, H2f, H2g, row 10).
 
 ## 11. Testing and failure handling
 
