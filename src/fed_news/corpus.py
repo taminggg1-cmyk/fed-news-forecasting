@@ -29,7 +29,8 @@ OLD_SPEECH_LINK = re.compile(
     r'href="((?:https?://www\.federalreserve\.gov)?/boarddocs/speeches/\d{4}/(\d{8})\d*/default\.htm)"', re.I)
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
 BEIGE_ARCHIVE = BASE + "/monetarypolicy/beigebook{}.htm"
-OLD_BEIGE_PDF = re.compile(r"files/fomc\d{8}beige(\d{8})\.pdf", re.I)
+BEIGE_CURRENT = BASE + "/monetarypolicy/publications/beige-book-default.htm"
+CAL_BEIGE_DATE = (r"files/fomc\d{8}beige(\d{8})\.pdf|/fomc/beigebook/\d{4}/(\d{8})/default\.htm")
 ARCHIVE_ROW = re.compile(r"<tr\b.*?</tr>", re.I | re.S)
 ARCHIVE_DAY = re.compile(r"\s*([A-Z][a-z]+ \d{1,2})(?!\d)")
 ARCHIVE_DATE = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
@@ -93,19 +94,28 @@ def _make_docs(rows_in, doc_type: str) -> tuple[pd.DataFrame, int]:
     return pd.DataFrame(rows, columns=DOC_COLS), dropped
 
 
+def calendar_beige_listing(cal: pd.DataFrame) -> pd.DataFrame:
+    """Calendar Beige rows whose URL carries the publication date (8 digits): 1994-2010."""
+    sub = cal[cal["kind"] == "beige"]
+    found = sub["url"].str.extract(CAL_BEIGE_DATE)
+    day = found[0].fillna(found[1])
+    sub = sub[day.notna()]
+    return pd.DataFrame({"url": sub["url"], "release": pd.to_datetime(day.dropna(), format="%Y%m%d")})
+
+
 def docs_from_calendar(cal: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, int]:
-    """Calendar rows of one kind as documents. Beige rows are only the 1994-95 PDFs, dated by the
-    8-digit date in the file name; later Beige Books come from the yearly archive pages."""
-    sub = cal[cal["kind"] == kind]
+    """Calendar rows of one kind as documents. Beige rows without a date in the URL are not used
+    here; build_beige fills them from the Beige Book archive pages."""
     if kind == "beige":
-        found = sub["url"].str.extract(OLD_BEIGE_PDF)[0]
-        sub = sub[found.notna()].assign(release=pd.to_datetime(found.dropna(), format="%Y%m%d"))
+        listing = calendar_beige_listing(cal)
+        return _make_docs(((r.url, r.release, "", None) for r in listing.itertuples()), "beige")
+    sub = cal[cal["kind"] == kind]
     pdate = (lambda r: r.date) if kind == "presconf" else (lambda r: None)
     return _make_docs(((r.url, r.release, "", pdate(r)) for r in sub.itertuples()), TYPE_OF_KIND[kind])
 
 
 def parse_beige_archive(html: str, year: int) -> pd.DataFrame:
-    """Rows of a yearly archive page: 'Month D' plus the page year, and the HTML (else PDF) link.
+    """Rows of a yearly archive page: 'Month D' plus the page year, and the PDF (the full report; else HTML) link.
     Rows with an unparseable date or no link are skipped; their number is in frame.attrs['skipped']."""
     rows, skipped = [], 0
     for row in ARCHIVE_ROW.findall(html):
@@ -113,7 +123,7 @@ def parse_beige_archive(html: str, year: int) -> pd.DataFrame:
         if not label:
             continue  # header row
         links = {kind.upper(): href for href, kind in ARCHIVE_LINK.findall(row)}
-        link = links.get("HTML") or links.get("PDF")
+        link = links.get("PDF") or links.get("HTML")
         try:
             release = pd.to_datetime(f"{ARCHIVE_DAY.match(label.group(1)).group(1)} {year}", format="%B %d %Y")
         except (ValueError, AttributeError):
@@ -127,17 +137,28 @@ def parse_beige_archive(html: str, year: int) -> pd.DataFrame:
     return frame
 
 
-def fetch_beige_archive() -> tuple[pd.DataFrame, int]:
-    listing, skipped = [], 0
-    for year in range(1996, pd.Timestamp.today().year + 1):
+def merge_beige(*listings: pd.DataFrame) -> pd.DataFrame:
+    """Union of listings in priority order; one row per release date, the earliest listing wins."""
+    return pd.concat(listings, ignore_index=True).drop_duplicates("release").sort_values("release")
+
+
+def build_beige(cal: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Beige Books from, in priority order, calendar URLs with a date, yearly archive pages
+    (1996 to last year) and the current-year page. Release date = the date on the source row."""
+    listings, skipped = [calendar_beige_listing(cal)], 0
+    this_year = pd.Timestamp.today().year
+    for year in range(1996, this_year):
         try:
             page = parse_beige_archive(get(BEIGE_ARCHIVE.format(year)), year)
         except FileNotFoundError:
             continue
-        listing.append(page)
+        listings.append(page)
         skipped += page.attrs["skipped"]
-    listing = pd.concat(listing, ignore_index=True).drop_duplicates("url")
+    current = parse_beige_archive(get(BEIGE_CURRENT, cache=False), this_year)
+    listings.append(current)
+    listing = merge_beige(*listings)
     docs, dropped = _make_docs(((r.url, r.release, "", None) for r in listing.itertuples()), "beige")
+    # current-page rows without a link are future meetings, not dropped documents
     return docs, dropped + skipped
 
 
@@ -194,15 +215,15 @@ def build_corpus(refresh: bool = False) -> pd.DataFrame:
         return pd.read_pickle(path)
     cal = load_calendar()
     parts, dropped = [], {}
-    for kind in ("statement", "minutes", "presconf", "beige"):
+    for kind in ("statement", "minutes", "presconf"):
         docs, n = docs_from_calendar(cal, kind)
         parts.append(docs)
         dropped[kind] = n
         print(f"{kind:9s} kept {len(docs):5d} dropped {n}", flush=True)
-    beige, n = fetch_beige_archive()
+    beige, n = build_beige(cal)
     parts.append(beige)
-    dropped["beige"] += n
-    print(f"beige archive kept {len(beige):5d} dropped {n}", flush=True)
+    dropped["beige"] = n
+    print(f"beige     kept {len(beige):5d} dropped {n}", flush=True)
     speeches, n = fetch_speeches()
     parts.append(speeches)
     dropped["speech"] = n

@@ -30,27 +30,50 @@ ARCHIVE_2012 = """<table><thead><tr><th class="alternate" colspan="4" id="year">
 </tbody></table>"""
 
 
-def test_parse_beige_archive_uses_row_date_and_html_link():
+def test_parse_beige_archive_uses_row_date_and_pdf_link():
     frame = corpus.parse_beige_archive(ARCHIVE_2012, 2012)
     assert frame["release"].tolist() == [T("2012-01-11"), T("2012-02-29"), T("2012-03-07")]
     assert frame["url"].tolist() == [
-        "https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201201.htm",
-        "https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201202.htm",
+        "https://www.federalreserve.gov/monetarypolicy/beigebook/files/fullreport20120111.pdf",
+        "https://www.federalreserve.gov/monetarypolicy/beigebook/files/fullreport20120229.pdf",
         "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20120307.pdf"]
     assert frame.attrs["skipped"] == 1
 
 
-def test_calendar_beige_keeps_only_1994_95_pdfs(monkeypatch):
-    base = "https://www.federalreserve.gov/monetarypolicy/"
+def test_parse_current_beige_page_cells():
+    html = ('<tr><th id="year">2026</th></tr><tr><td>January 14: <a href="/monetarypolicy/beigebook202601-summary.htm">'
+            'HTML</a> | <a href="https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260114.pdf">PDF</a></td></tr>'
+            '<tr><td>March 4: <a href="/monetarypolicy/beigebook202602-summary.htm">HTML</a> | '
+            '<a href="/monetarypolicy/files/BeigeBook_20260304.pdf">PDF</a></td></tr>')
+    frame = corpus.parse_beige_archive(html, 2026)
+    assert frame["release"].tolist() == [T("2026-01-14"), T("2026-03-04")]
+    assert frame["url"].tolist() == [
+        "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260114.pdf",
+        "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260304.pdf"]
+
+
+def test_calendar_beige_takes_url_dates_in_both_patterns(monkeypatch):
+    base = "https://www.federalreserve.gov/"
     cal = pd.DataFrame([
         {"kind": "beige", "date": T("1995-01-18"), "release": T("1995-01-18"),
-         "url": base + "files/fomc19950201beige19950118.pdf"},
+         "url": base + "monetarypolicy/files/fomc19950201beige19950118.pdf"},
+        {"kind": "beige", "date": T("2004-01-01"), "release": T("2004-01-14"),
+         "url": base + "fomc/beigebook/2004/20040114/default.htm"},
         {"kind": "beige", "date": T("2017-01-01"), "release": T("2017-01-09"),
-         "url": base + "beigebook201701.htm"}])
-    seen = []
-    monkeypatch.setattr(corpus, "_fetch_text", lambda url, d=None: seen.append(url) or "word " * 200)
+         "url": base + "monetarypolicy/beigebook201701.htm"}])
+    listing = corpus.calendar_beige_listing(cal)
+    assert listing["release"].tolist() == [T("1995-01-18"), T("2004-01-14")]
+    monkeypatch.setattr(corpus, "_fetch_text", lambda url, d=None: "word " * 200)
     docs, dropped = corpus.docs_from_calendar(cal, "beige")
-    assert docs["release"].tolist() == [T("1995-01-18")] and dropped == 0 and len(seen) == 1
+    assert docs["release"].tolist() == [T("1995-01-18"), T("2004-01-14")] and dropped == 0
+
+
+def test_merge_beige_keeps_highest_priority_source_per_release_date():
+    cal = pd.DataFrame({"url": ["cal-url"], "release": [T("2005-02-02")]})
+    archive = pd.DataFrame({"url": ["arch-url", "arch-other"], "release": [T("2005-02-02"), T("2005-03-09")]})
+    current = pd.DataFrame({"url": ["cur-url"], "release": [T("2005-03-09")]})
+    merged = corpus.merge_beige(cal, archive, current)
+    assert merged["url"].tolist() == ["cal-url", "arch-other"]
 
 
 def test_corrupt_pdf_is_dropped_not_fatal(monkeypatch):
@@ -127,4 +150,11 @@ def test_parse_beige_archive_date_and_links_in_one_cell():
             'beigebook202401-summary.htm">HTML</a> | <a href="/x/BeigeBook_20240117.pdf">PDF</a></td></tr>')
     frame = corpus.parse_beige_archive(html, 2024)
     assert frame["release"].tolist() == [T("2024-01-17")]
-    assert frame["url"].tolist() == ["https://www.federalreserve.gov/monetarypolicy/beigebook202401-summary.htm"]
+    assert frame["url"].tolist() == ["https://www.federalreserve.gov/x/BeigeBook_20240117.pdf"]
+
+
+@pytest.mark.network
+def test_live_current_beige_page_has_this_years_books():
+    year = pd.Timestamp.today().year
+    frame = corpus.parse_beige_archive(corpus.get(corpus.BEIGE_CURRENT, cache=False), year)
+    assert len(frame) >= 6 and (frame["release"].dt.year == year).all()
