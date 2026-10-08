@@ -28,6 +28,10 @@ OLD_SPEECH_LIST = BASE + "/newsevents/speech/{}speech.htm"
 OLD_SPEECH_LINK = re.compile(
     r'href="((?:https?://www\.federalreserve\.gov)?/boarddocs/speeches/\d{4}/(\d{8})\d*(?:/default)?\.htm)"', re.I)
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
+MONTH_DATE = re.compile(r"(January|February|March|April|May|June|July|August|September|October|"
+                        r"November|December)" + r"\s+(\d{1,2}),\s+(\d{4})")
+RELEASE_DATE = re.compile(r"Release Date:\s*(January|February|March|April|May|June|July|August|September|"
+                          r"October|November|December)\s+(\d{1,2}),\s+(\d{4})", re.I)
 BEIGE_ARCHIVE = BASE + "/monetarypolicy/beigebook{}.htm"
 BEIGE_CURRENT = BASE + "/monetarypolicy/publications/beige-book-default.htm"
 CAL_BEIGE_DATE = (r"files/fomc\d{8}beige(\d{8})\.pdf|/fomc/beigebook/\d{4}/(\d{8})/default\.htm")
@@ -81,14 +85,40 @@ def _fetch_text(url: str, presconf_date=None) -> str | None:
         return None
 
 
-def _make_docs(rows_in, doc_type: str) -> tuple[pd.DataFrame, int]:
-    """rows_in: iterable of (url, release, speaker, presconf_date). Unusable documents are counted."""
+def statement_header_date(text: str) -> pd.Timestamp:
+    """Date printed on a statement: 'Release Date: Month D, YYYY', else the first date in the
+    first 400 characters, else NaT."""
+    m = RELEASE_DATE.search(text) or MONTH_DATE.search(text[:400])
+    if not m:
+        return pd.NaT
+    try:
+        return pd.Timestamp(f"{m.group(1)} {m.group(2)} {m.group(3)}")
+    except ValueError:
+        return pd.NaT
+
+
+def _statement_release(url: str, text: str, release: pd.Timestamp) -> pd.Timestamp:
+    """Never earlier than the URL date; moved later when the statement header says it was issued later
+    (the 2007-06-28 statement sits at a 20070618 URL)."""
+    header = statement_header_date(text)
+    if pd.notna(header) and header > release:
+        print(f"statement header date {header:%Y-%m-%d} differs from URL date {release:%Y-%m-%d}: {url}",
+              flush=True)
+        return header
+    return release
+
+
+def _make_docs(rows_in, doc_type: str, adjust=None) -> tuple[pd.DataFrame, int]:
+    """rows_in: iterable of (url, release, speaker, presconf_date). Unusable documents are counted.
+    adjust(url, text, release) may return a corrected release date."""
     rows, dropped = [], 0
     for url, release, speaker, pdate in rows_in:
         text = _fetch_text(url, pdate)
         if text is None or pd.isna(release) or len(text) < config.MIN_DOC_CHARS:
             dropped += 1
             continue
+        if adjust is not None:
+            release = adjust(url, text, release)
         rows.append({"doc_id": _doc_id(doc_type, release, url), "type": doc_type,
                      "speaker": speaker, "release": pd.Timestamp(release), "text": text})
     return pd.DataFrame(rows, columns=DOC_COLS), dropped
@@ -111,7 +141,8 @@ def docs_from_calendar(cal: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, int]
         return _make_docs(((r.url, r.release, "", None) for r in listing.itertuples()), "beige")
     sub = cal[cal["kind"] == kind]
     pdate = (lambda r: r.date) if kind == "presconf" else (lambda r: None)
-    return _make_docs(((r.url, r.release, "", pdate(r)) for r in sub.itertuples()), TYPE_OF_KIND[kind])
+    adjust = _statement_release if kind == "statement" else None
+    return _make_docs(((r.url, r.release, "", pdate(r)) for r in sub.itertuples()), TYPE_OF_KIND[kind], adjust)
 
 
 def parse_beige_archive(html: str, year: int) -> pd.DataFrame:

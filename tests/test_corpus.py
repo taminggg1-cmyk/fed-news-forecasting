@@ -167,3 +167,28 @@ def test_parse_old_speech_list_flat_file_links():
     frame = corpus.parse_old_speech_list(page)
     assert frame["release"].tolist() == [T("1999-12-15"), T("1999-10-28"), T("2002-11-21")]
     assert frame["url"].tolist()[1] == "https://www.federalreserve.gov/boarddocs/speeches/1999/199910282.htm"
+
+
+def test_statement_header_date_both_layouts():
+    assert corpus.statement_header_date("Release Date: June 28, 2007 The Committee decided") == T("2007-06-28")
+    assert corpus.statement_header_date("June 28, 2007 FOMC statement For immediate release") == T("2007-06-28")
+    assert pd.isna(corpus.statement_header_date("no date here"))
+
+
+def _statement_cal(release):
+    return pd.DataFrame([{"kind": "statement", "date": release, "release": release, "url": "u"}])
+
+
+def test_statement_release_moves_to_later_header_date(monkeypatch):
+    monkeypatch.setattr(corpus, "get", lambda url, **k: "<div id='article'>June 28, 2007 FOMC statement "
+                        + "word " * 200 + "</div>")
+    docs, dropped = corpus.docs_from_calendar(_statement_cal(T("2007-06-18")), "statement")
+    assert docs["release"].tolist() == [T("2007-06-28")] and dropped == 0
+    assert docs["doc_id"].iloc[0].startswith("statement:20070628:")
+
+
+def test_statement_release_never_moves_earlier(monkeypatch):
+    monkeypatch.setattr(corpus, "get", lambda url, **k: "<div id='article'>June 18, 2007 FOMC statement "
+                        + "word " * 200 + "</div>")
+    docs, _ = corpus.docs_from_calendar(_statement_cal(T("2007-06-28")), "statement")
+    assert docs["release"].tolist() == [T("2007-06-28")]
