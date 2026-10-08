@@ -242,7 +242,8 @@ and cannot rescue a failed H1.
 **Voiding rule.** If the placebo (row 8) also beats S at p < 0.05 on any of the three tests,
 the H1 result is void and reported as a leakage or overfitting signal. The same holds for the
 shuffled-label control (S+N columns, training targets permuted within each training window): if it
-beats the random walk / always-hold at p < 0.05 on any of the three tests, H1 is void.
+beats the random walk / always-hold at p < 0.01 on any of the three tests, H1 is void. The stricter
+threshold keeps this control's chance of voiding a valid result near 3% rather than about 14%.
 
 **Variance rule.** Every neural configuration is reported as mean ± standard deviation over
 8 seeds. A neural comparison counts only if its gap exceeds two seed standard deviations.
