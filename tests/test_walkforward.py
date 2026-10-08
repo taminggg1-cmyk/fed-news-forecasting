@@ -76,3 +76,76 @@ def test_prereg_ok_reads_git_tag(tmp_path):
     assert wf.prereg_ok(tmp_path) is False
     git("tag", "prereg")
     assert wf.prereg_ok(tmp_path) is True
+
+
+def _one_row(df, spec, i):
+    d = df.index[i].strftime("%Y-%m-%d")
+    return wf.run_spec(df, spec, d, d, require_prereg=False)
+
+
+def _perturb(df, i, target_rows):
+    d = df.copy()
+    for r in target_rows:
+        d.iloc[r, d.columns.get_loc("y_level")] = 9.0
+        d.iloc[r, d.columns.get_loc("y_change")] = 7.0
+        d.iloc[r, d.columns.get_loc("y_class")] = 2
+    fut = d.index[i + 1:]
+    d.loc[fut, :] = d.loc[fut, :].to_numpy() * -3.0 + 5.0
+    d["y_class"] = d["y_class"].astype(int)
+    return d
+
+
+def test_t1_forecast_ignores_rows_after_training_window():
+    df = synthetic(100)
+    spec = {s.name: s for s in wf.ladder("T1")}["S+N"]
+    i = 80
+    base = _one_row(df, spec, i)
+    alt = _one_row(_perturb(df, i, [i - 1, i]), spec, i)
+    assert np.isfinite(base["y_pred"].iloc[0])
+    assert base["y_pred"].iloc[0] == alt["y_pred"].iloc[0]
+
+
+def test_t2_forecast_ignores_current_and_future_targets():
+    df = synthetic(100)
+    spec = {s.name: s for s in wf.ladder("T2")}["S+N"]
+    i = 80
+    base = _one_row(df, spec, i)
+    alt = _one_row(_perturb(df, i, [i]), spec, i)
+    assert base["y_pred"].iloc[0] == alt["y_pred"].iloc[0]
+    assert base["class_pred"].iloc[0] == alt["class_pred"].iloc[0]
+
+
+def test_taylor_branch_runs():
+    spec = {s.name: s for s in wf.ladder("T1")}["taylor"]
+    out = wf.run_spec(synthetic(100), spec, "2001-01-01", require_prereg=False)
+    assert len(out) > 0 and np.isfinite(out["y_pred"]).all()
+
+
+def test_placebo_runs_end_to_end():
+    spec = {s.name: s for s in wf.ladder("T2")}["placebo"]
+    out = wf.run_spec(synthetic(100), spec, "2002-01-01", require_prereg=False)
+    assert len(out) > 0 and np.isfinite(out["y_pred"]).all()
+
+
+@pytest.mark.parametrize("name", ["S+N", "placebo", "S+M+N"])
+def test_all_text_specs_refused_without_prereg(monkeypatch, name):
+    monkeypatch.setattr(wf, "prereg_ok", lambda repo=None: False)
+    spec = {s.name: s for s in wf.ladder("T2")}[name]
+    with pytest.raises(PermissionError):
+        wf.run_spec(synthetic(), spec, "2000-01-01")
+
+
+def test_run_spec_rejects_missing_values():
+    df = synthetic()
+    df.iloc[10, df.columns.get_loc("n_epu")] = np.nan
+    spec = {s.name: s for s in wf.ladder("T2")}["S+N"]
+    with pytest.raises(ValueError):
+        wf.run_spec(df, spec, "2000-01-01", require_prereg=False)
+
+
+def test_run_spec_rejects_unsorted_index():
+    df = synthetic().iloc[::-1]
+    spec = {s.name: s for s in wf.ladder("T2")}["S"]
+    with pytest.raises(ValueError):
+        wf.run_spec(df, spec, "2000-01-01", require_prereg=False)
+

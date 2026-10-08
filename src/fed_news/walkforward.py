@@ -70,8 +70,13 @@ def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None
              seed: int = 0, require_prereg: bool = True) -> pd.DataFrame:
     if require_prereg and any(c in N_COLS for c in spec.cols) and not prereg_ok():
         raise PermissionError(f"{spec.name} uses news columns; tag '{config.PREREG_TAG}' first")
+    if not (df.index.is_monotonic_increasing and df.index.is_unique):
+        raise ValueError("df index must be strictly increasing (sorted, no duplicates)")
+    needed = list(dict.fromkeys(spec.cols + ["y_level", "y_change", "y_class", "s_rate_lag"]))
+    if df[needed].isna().any().any():
+        raise ValueError(f"{spec.name}: NaN in required columns; pass common_rows(df)")
     dates = df.index
-    test = np.flatnonzero((dates >= pd.Timestamp(test_start))
+    test =np.flatnonzero((dates >= pd.Timestamp(test_start))
                           & (dates <= pd.Timestamp(test_end) if test_end else True))
     y_change, y_class = df["y_change"].to_numpy(float), df["y_class"].to_numpy(int)
     lag, y_level = df["s_rate_lag"].to_numpy(float), df["y_level"].to_numpy(float)
