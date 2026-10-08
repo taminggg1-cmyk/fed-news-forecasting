@@ -39,3 +39,10 @@ def test_get_404_raises_file_not_found_without_retry(tmp_path, monkeypatch):
     with pytest.raises(FileNotFoundError):
         http.get("https://example.org/missing", pause=0)
     assert len(calls) == 1
+
+
+def test_get_without_cache_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "CACHE", tmp_path)
+    monkeypatch.setattr(http.requests, "get", lambda *a, **k: FakeResponse())
+    http.get("https://example.org/c", pause=0, cache=False)
+    assert not (tmp_path / "http").exists() or not any((tmp_path / "http").iterdir())

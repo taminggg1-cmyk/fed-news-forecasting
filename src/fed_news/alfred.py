@@ -8,6 +8,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import requests
 
 from fed_news import config
 from fed_news.http import get
@@ -52,7 +53,12 @@ def fetch_vintages(sid: str, refresh: bool = False) -> pd.DataFrame:
         return pd.read_pickle(path)
     key, parts, offset = api_key(), [], 0
     while True:
-        payload = json.loads(get(API.format(sid=sid, key=key, offset=offset), cache=False))
+        try:
+            text = get(API.format(sid=sid, key=key, offset=offset), cache=False)
+        except (requests.RequestException, FileNotFoundError):
+            # the original error message embeds the URL, which contains the API key
+            raise RuntimeError(f"ALFRED fetch failed for {sid}") from None
+        payload = json.loads(text)
         parts.append(parse_observations(payload))
         offset += len(payload["observations"])
         if not payload["observations"] or offset >= int(payload["count"]):

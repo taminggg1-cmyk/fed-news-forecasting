@@ -58,3 +58,19 @@ def test_payems_vintages_download():
     obs = alfred.fetch_vintages("PAYEMS", refresh=True)
     assert obs["realtime_start"].nunique() > 100
     assert obs["date"].min() <= T("1994-01-01")
+
+
+def test_fetch_failure_does_not_leak_api_key(tmp_path, monkeypatch):
+    import requests
+
+    def boom(*a, **k):
+        raise requests.HTTPError("400 for url https://x?api_key=SECRETKEY")
+
+    monkeypatch.setattr(alfred, "get", boom)
+    monkeypatch.setattr(alfred, "api_key", lambda: "SECRETKEY")
+    monkeypatch.setattr(alfred.config, "DATA", tmp_path)
+    with pytest.raises(RuntimeError) as info:
+        alfred.fetch_vintages("BAD")
+    assert "SECRETKEY" not in str(info.value)
+    assert info.value.__cause__ is None
+    assert info.value.__suppress_context__ is True

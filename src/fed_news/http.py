@@ -27,7 +27,8 @@ def get(url: str, binary: bool = False, retries: int = 3, pause: float = 0.3,
                     raise
                 time.sleep(3 * (attempt + 1))
         data = resp.content
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        if cache:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
         time.sleep(pause)
     return data if binary else data.decode("utf-8-sig", errors="replace")
