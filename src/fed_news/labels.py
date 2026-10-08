@@ -17,6 +17,8 @@ from fed_news.http import get
 
 LABEL_TYPES = ("statement", "minutes", "presconf", "speech")
 MIN_MATCH_RATE = 0.9
+MIN_FALLBACK_CHARS = 40
+DATED_COLUMNS = ["sentence", "label", "release", "source", "year"]
 LABELS = {"dovish": 0, "hawkish": 1, "neutral": 2}
 TDW = "https://huggingface.co/datasets/gtfintechlab/fomc_communication/resolve/main/{}.csv"
 WCB = ("https://huggingface.co/datasets/gtfintechlab/federal_reserve_system/resolve/main/"
@@ -60,6 +62,8 @@ def date_labels(labels: pd.DataFrame, corpus: pd.DataFrame) -> pd.DataFrame:
         texts = [(d.release, _norm(d.text)) for d in docs.itertuples()]
         for idx in labels.index[missing]:
             needle = _norm(labels.at[idx, "sentence"])
+            if len(needle) < MIN_FALLBACK_CHARS:
+                continue
             for release, text in texts:
                 if needle in text:
                     rel.at[idx] = release
@@ -68,13 +72,16 @@ def date_labels(labels: pd.DataFrame, corpus: pd.DataFrame) -> pd.DataFrame:
     out = out[out["release"].notna()].reset_index(drop=True)
     out["release"] = pd.to_datetime(out["release"])
     out["year"] = out["release"].dt.year.astype(int)
-    return out[["sentence", "label", "release", "source", "year"]]
+    return out[DATED_COLUMNS]
 
 
 def load_labels(refresh: bool = False) -> pd.DataFrame:
     path = config.DATA / "labels.pkl"
     if path.exists() and not refresh:
-        return pd.read_pickle(path)
+        cached = pd.read_pickle(path)
+        if list(cached.columns) == DATED_COLUMNS:
+            return cached
+        print("labels.pkl has a stale schema (no release dates); rebuilding", flush=True)
     raw = _load_raw()
     out = date_labels(raw, build_corpus())
     for source in ("tdw", "wcb"):
