@@ -21,8 +21,8 @@
 - If one seed-pass of a paper LSTM/GRU spec takes longer than one hour, rerun the paper LSTM/GRU specs with refit every 3 months and record the deviation in `DEVIATIONS.md`.
 - Meeting LSTM (T2): lookback 4 meetings, refit every 8 meetings; other settings as the paper LSTM (240 units, lr 1e-4, 300 epochs, level target).
 - TFT: `CompactTFT` from the gold project, hidden size 32, 4 heads, dropout 0.2, lookback 12 months (T1) or 8 meetings (T2), early stopping on the last 20% of each training window (patience 20, at most 300 epochs, Adam lr 1e-3), refit every 12 months (T1) or 8 meetings (T2), predicts the change in the rate.
-- Hybrid: the Plan 1 primary linear model (T1 ridge on the change; T2 penalised ordered logit, expected change) is the anchor; a TFT with the same settings is trained on the anchor's residuals computed out-of-fold by expanding-window CV inside the training window (folds whose training part has fewer than 20 rows are skipped). Forecast = lag + anchor change + TFT correction.
-- Training for LSTM/GRU/meeting LSTM is full-batch Adam on MSE. 8 seeds (0-7) per spec; the seed sets torch's initialisation.
+- Hybrid: the Plan 1 primary linear model (T1 ridge on the change; T2 penalised ordered logit, expected change) is the anchor, refitted at every test row exactly as in Plan 1; a TFT with the same settings, refitted on its own schedule, is trained on the anchor's residuals computed out-of-fold by expanding-window CV inside the training window (folds whose training part has fewer than 20 rows are skipped). Forecast = lag + anchor change + TFT correction.
+- Training for LSTM/GRU/meeting LSTM is mini-batch Adam on MSE, batch size 32 (Keras default; the paper did not report its batch size), shuffled each epoch by a generator seeded with the run seed; the TFT trains full batch with early stopping. Every neural training target (level, change or hybrid residual) is standardised with the mean and sd of that refit's fit rows and inverted at prediction. 8 seeds (0-7) per spec; the seed sets torch's initialisation and the batch order.
 - Continuous forecasts become classes with the +/-0.125 band (`models.classes_from_change`). Ensembles = mean of the 8 seeds' forecasts.
 - Variance rule (spec section 8): a neural S+N vs S comparison counts only if mean RMSE(S) - mean RMSE(S+N) exceeds 2 x the larger of the two seed standard deviations (ddof = 1).
 - Tests per architecture on the seed-mean ensembles: one-sided DM-HLN on squared error (T1 and T2); exact McNemar on correct classes (T2). Holm adjustment across all H2 p-values so far (Plan 1 `results/h2_pvalues.csv` plus H2a); final Holm after Plan 3.
@@ -809,14 +809,14 @@ Binding: spec sections 3 (H2a), 7 (Secondary architectures), 8 (variance rule) a
 This file fixes the settings the spec leaves open, before any neural forecast that uses news.
 
 ## Settings
-- Paper LSTM (T1): 12 steps, 240 units, 1 layer, no dropout, Adam lr 1e-4, 300 epochs, full batch, MSE, predicts the level, refit every month.
-- Paper GRU (T1): 12 steps, 188 units, 1 layer, no dropout, Adam lr 2e-4, 449 epochs, full batch, MSE, predicts the level, refit every month.
+- Paper LSTM (T1): 12 steps, 240 units, 1 layer, no dropout, Adam lr 1e-4, 300 epochs, batch 32 shuffled per epoch (seeded), MSE on the standardised target, predicts the level, refit every month.
+- Paper GRU (T1): 12 steps, 188 units, 1 layer, no dropout, Adam lr 2e-4, 449 epochs, batch 32 shuffled per epoch (seeded), MSE on the standardised target, predicts the level, refit every month.
 - One-hour rule: if `T1/lstm-S/seed0` takes longer than 3,600 s, all paper LSTM/GRU T1 specs are run with refit every 3 months instead, recorded in DEVIATIONS.md.
 - Meeting LSTM (T2): lookback 4 meetings, refit every 8 meetings, otherwise as the paper LSTM.
 - TFT: CompactTFT (gold_gpt2/src/tft.py, vendored unchanged), hidden 32, 4 heads, dropout 0.2, lookback 12 months / 8 meetings, Adam lr 1e-3, full batch, at most 300 epochs, early stopping on the chronologically last 20% of training rows with patience 20 (best epoch kept; the untrained weights count as epoch 0), refit every 12 months / 8 meetings, predicts the change.
-- Hybrid: anchor = Plan 1 primary model (T1 ridge on the change, T2 penalised ordered logit expected change, penalties by 5-fold expanding CV), refit with the TFT; TFT trained on out-of-fold anchor residuals (5 expanding folds inside the training window, folds whose training part has fewer than 20 rows skipped); forecast = lag + anchor change + TFT correction.
+- Hybrid: anchor = Plan 1 primary model (T1 ridge on the change, T2 penalised ordered logit expected change, penalties by 5-fold expanding CV), refitted at every test row as in Plan 1; TFT (refitted on its schedule) trained on out-of-fold anchor residuals (5 expanding folds inside the training window, folds whose training part has fewer than 20 rows skipped); forecast = lag + anchor change + TFT correction.
 - Training rows: walkforward.train_mask (T1 rows <= t-2, T2 earlier meetings); features standardised on each refit's training rows; the model and standardisation of the last refit forecast the rows until the next refit.
-- Seeds 0-7 per spec; ensemble = mean of the 8 seeds' forecasts; classes from the +/-0.125 band.
+- All neural targets standardised with the fit rows' mean and sd and inverted at prediction. Seeds 0-7 per spec (initialisation and batch order); ensemble = mean of the 8 seeds' forecasts; classes from the +/-0.125 band.
 
 ## Tests and decision rule (secondary; cannot change the H1 verdict)
 - Per architecture (T1: lstm, gru, tft, hybrid; T2: mlstm, tft, hybrid), S+N vs S on the seed-mean ensembles: one-sided DM-HLN on squared error (T1, T2); exact one-sided McNemar on correct classes (T2).
