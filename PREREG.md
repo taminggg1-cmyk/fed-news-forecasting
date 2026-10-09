@@ -4,16 +4,16 @@ Date: 2026-10-09. Code commit: 68b5f08.
 Design: docs/superpowers/specs/2026-10-08-fed-news-design.md (all sections binding).
 
 ## Data as built
-- Meetings: 270 from 1995-03-28 to 2026-09-16; unscheduled: 2007-08-10, 2008-03-11, 2010-05-09, 2019-10-11, 2020-03-23, 2020-03-31, 2020-08-27, 2025-08-22, 2007-06-18 (9 non-decision press releases / mislinks excluded).
-- T1 common rows: 378, first 1995-03-01; T2 common rows: 260, first 1995-03-28.
-- ALFRED first vintages: m2 unknown, pce/pce_core 2000-08-01, ppi/cpi_core 1996-12, earn 2011-03-04, u6 2011-03-04, hpi 2012-05-23; rows using the fallback: T1 137, T2 96 (within test windows; revision lookahead shared by S and S+N).
+- Meetings: 270 from 1994-02-04 to 2026-09-16; unscheduled (target moves between scheduled meetings): 1994-04-18, 1998-10-15, 2001-01-03, 2001-04-18, 2001-09-17, 2008-01-22, 2008-10-08, 2020-03-03. Excluded statement-only dates (non-decision press releases or mislinks): 2007-06-18, 2007-08-10, 2008-03-11, 2010-05-09, 2019-10-11, 2020-03-23, 2020-03-31, 2020-08-27, 2025-08-22.
+- T1 common rows: 378, first 1995-03-01; T2 common rows: 260, first 1995-03-28; test rows (2001 on): T1 308 (2001-01-01 .. 2026-09-01; 2004-01 dropped), T2 212 (2001-01-03 .. 2026-09-16).
+- ALFRED first vintages: M2SL 1980-02-08, PCEPI 2000-08-01, PCEPILFE 2000-08-01, PAYEMS 1955-05-06, CES0500000030 2011-03-04, GDP 1991-12-04, U6RATE 2011-03-04, UNRATE 1960-03-15, PPIACO 1996-12-11, CPIAUCSL 1972-07-21, CPILFESL 1996-12-12, HPIPONM226S 2012-05-23; all rows: T1 221 of 393, T2 154 of 270; in the 2001+ test windows: T1 137 of 309, T2 96 of 212 (last fallback row 2012-05-01 / 2012-04-25).
 - Corpus documents by type: statement 240, minutes 263, presconf 94, beige 262, speech 1981 (total 2,840); dropped: 5 speech documents.
 - Stance classifier held-out accuracy by year: see results/stance_accuracy.csv (min 0.560 (year 2000), max 0.701 (year 2025), median 0.661).
 - Label matching rates: TDW 0.893, WCB 0.983 (gate 0.85); eligible for training: 2000 410, 2001 522, 2005 983, 2010 1522, 2020 2542, 2026 3074.
 
 ## Primary hypothesis H1 and win rule
 S = the 16 columns in panel.S_COLS. N = n_stance, n_stance_chg, n_beige, n_news, n_gpr, n_epu.
-Test windows: T1 2001-01 to 2026-09; T2 meetings 2001-01-25 to 2026-09-16.
+Test windows: T1 2001-01 to 2026-09; T2 meetings 2001-01-03 to 2026-09-16.
 H1 holds only if all three are one-sided p < 0.05:
 1. T1: S+N beats S on squared error, DM-HLN, h = 1.
 2. T2: S+N beats S on squared rate error, DM-HLN, h = 1.
@@ -38,7 +38,7 @@ They cannot rescue a failed H1.
 ## Known limitations
 - ALFRED fallback revision lookahead to 2012 for earn/u6/hpi (identical for S and S+N; shared by both models).
 - SF Fed index vintage downloaded 2026-10-09.
-- No statements for 1994-1996 (before web publication).
+- No statements for 1994-1996 (the 1994-1996 calendar pages link none).
 - T1 2004-01 row dropped (PCE vintage 2003-12-23 mostly NaN).
 - Stance classifier holdout is sentence-level (same-meeting leakage possible; optimistic accuracy).
 - 1994-1999 documents scored by 2000 classifier trained on labels including those years (training-only rows in-sample).
@@ -46,5 +46,5 @@ They cannot rescue a failed H1.
 - TDW/WCB labels created after sample (human annotation of historical text).
 
 ## Data and environment
-- Data hashes (SHA-256) in results/data_hashes.txt (12 root pickles + 13 alfred/*.pkl): `333cea866038c88175f86f28a8378903c5799ecd117f7c8ef6914f8b48cf88fd`.
+- Data hashes (SHA-256) in results/data_hashes.txt (12 root pickles + 12 alfred/*.pkl): `333cea866038c88175f86f28a8378903c5799ecd117f7c8ef6914f8b48cf88fd`.
 - Environment pinned in results/pip_freeze.txt (Python 3.13.7 + torch CUDA, transformers, sklearn, statsmodels, scipy, pandas 3.0, numpy 2.3, bs4, lxml, pypdf): `61bdcd5142bc459f8685e791038287076925c3d9911018fd26dd6e06fb974854`.
