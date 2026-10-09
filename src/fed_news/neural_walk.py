@@ -114,7 +114,9 @@ def _check_inputs(df: pd.DataFrame, spec: NeuralSpec) -> None:
 
 
 def run_neural_spec(df: pd.DataFrame, spec: NeuralSpec, seed: int, test_start, test_end=None, device: str = "cuda",
-                    require_prereg: bool = True, epochs: int | None = None) -> pd.DataFrame:
+                    require_prereg: bool = True, epochs: int | None = None,
+                    anchor_every_row: bool = True) -> pd.DataFrame:
+    # anchor_every_row=False (frozen analysis): the hybrid's linear anchor is fitted at each neural refit only.
     uses_text = any(c in N_COLS for c in spec.cols)
     if require_prereg and uses_text and not (prereg_ok() and prereg_h2a_ok()):
         raise PermissionError(f"{spec.name} uses news columns; tags 'prereg' and '{H2A_TAG}' must exist first")
@@ -129,12 +131,14 @@ def run_neural_spec(df: pd.DataFrame, spec: NeuralSpec, seed: int, test_start, t
     y_class = df["y_class"].to_numpy(int)
     n_epochs = spec.epochs if epochs is None else epochs
     cols_out = ["date", "y_true", "y_pred", "lag", "class_true", "class_pred"]
-    out, model, Z, t_mu, t_sd = [], None, None, 0.0, 1.0
+    out, model, Z, t_mu, t_sd, anchor_fn = [], None, None, 0.0, 1.0, None
     for k, i in enumerate(test):
         if k % spec.refit_every == 0:
             train = train_mask(n, i, spec.task)
             Z = standardise(X, train)
             rows = np.flatnonzero(train)
+            if spec.anchor and not anchor_every_row:
+                anchor_fn = _anchor(Z, y_change, y_class, rows, spec.task)
             if spec.anchor:
                 fit_rows, target = oof_residuals(Z, y_change, y_class, rows, spec.task)
             else:
@@ -159,10 +163,13 @@ def run_neural_spec(df: pd.DataFrame, spec: NeuralSpec, seed: int, test_start, t
         else:
             change = raw
             if spec.anchor:
-                # The anchor refits at every row, exactly as the primary linear model does.
-                train_i = train_mask(n, i, spec.task)
-                Z_i = standardise(X, train_i)
-                change += float(_anchor(Z_i, y_change, y_class, np.flatnonzero(train_i), spec.task)(np.array([i]))[0])
+                if anchor_every_row:
+                    # The anchor refits at every row, exactly as the primary linear model does.
+                    train_i = train_mask(n, i, spec.task)
+                    Z_i = standardise(X, train_i)
+                    change += float(_anchor(Z_i, y_change, y_class, np.flatnonzero(train_i), spec.task)(np.array([i]))[0])
+                else:
+                    change += float(anchor_fn(np.array([i]))[0])
         if not np.isfinite(change):
             raise ValueError(f"{spec.name}: non-finite forecast at {dates[i].date()}")
         out.append({"date": dates[i], "y_true": y_level[i], "y_pred": lag[i] + change, "lag": lag[i],
