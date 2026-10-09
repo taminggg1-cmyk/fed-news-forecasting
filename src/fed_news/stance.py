@@ -6,6 +6,7 @@ every sentence of that year's statements, minutes, press conferences and speeche
 stance = P(hawkish) - P(dovish); document stance = mean over its sentences. Models are not
 saved (disk); per-year results are, so an interrupted run resumes.
 """
+import gc
 import hashlib
 import os
 
@@ -87,7 +88,9 @@ def train_and_score(train: pd.DataFrame, texts: list[str], vintage: int, seed: i
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16):
         for j, ids, mask in _batches(tok, texts, 128, np.arange(len(texts))):
             out[j] = torch.softmax(net(ids, mask).float(), dim=-1).cpu().numpy()
-    del net
+    # Free everything per seed so repeated calls do not accumulate memory.
+    del net, opt, scaler, tok
+    gc.collect()
     torch.cuda.empty_cache()
     return out
 
