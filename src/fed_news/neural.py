@@ -1,6 +1,6 @@
 """Neural forecasters for Plan 2 (spec section 7, secondary architectures).
 
-The paper's LSTM/GRU and the meeting LSTM train full-batch Adam on MSE for a fixed number of
+The paper's LSTM/GRU and the meeting LSTM train mini-batch Adam on MSE for a fixed number of
 epochs; the TFT (vendored in tft.py) trains with early stopping on the chronologically last part
 of its training rows and keeps the best epoch's weights.
 """
@@ -49,15 +49,23 @@ def _tensor(a, device: str) -> torch.Tensor:
     return torch.tensor(np.asarray(a), dtype=torch.float32, device=device)
 
 
-def fit_fixed(model, X, y, lr: float, epochs: int, device: str):
+def fit_fixed(model, X, y, lr: float, epochs: int, device: str, batch_size: int = 32, seed: int = 0):
+    """Mini-batch Adam on MSE (batch 32 is the Keras default; shuffled once per epoch)."""
     model.to(device).train()
     xt, yt = _tensor(X, device), _tensor(y, device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
+    rng = np.random.default_rng(seed)
+    n = len(yt)
     for _ in range(epochs):
-        opt.zero_grad()
-        loss = nn.functional.mse_loss(model(xt), yt)
-        loss.backward()
-        opt.step()
+        order = torch.as_tensor(rng.permutation(n), device=device)
+        for s in range(0, n, batch_size):
+            idx = order[s: s + batch_size]
+            opt.zero_grad()
+            loss = nn.functional.mse_loss(model(xt[idx]), yt[idx])
+            if not torch.isfinite(loss):
+                raise ValueError("non-finite training loss")
+            loss.backward()
+            opt.step()
     return model
 
 

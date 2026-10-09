@@ -120,10 +120,74 @@ def test_rejects_unsorted_index():
         run(df, spec("T1", "tft-S"), "2001-01-01")
 
 
-def test_text_spec_refused_without_h2a_tag(monkeypatch):
-    monkeypatch.setattr(nw, "prereg_ok", lambda repo=None: True)
-    monkeypatch.setattr(nw, "prereg_h2a_ok", lambda repo=None: False)
-    with pytest.raises(PermissionError):
-        nw.run_neural_spec(synthetic(), spec("T1", "lstm-S+N"), 0, "2001-01-01", device="cpu", epochs=1)
+def test_text_spec_refused_without_both_tags(monkeypatch):
+    calls = []
+    real = nw.build_model
+    monkeypatch.setattr(nw, "build_model", lambda *a, **k: calls.append(1) or real(*a, **k))
+    for prereg, h2a in ((True, False), (False, True)):
+        monkeypatch.setattr(nw, "prereg_ok", lambda repo=None, v=prereg: v)
+        monkeypatch.setattr(nw, "prereg_h2a_ok", lambda repo=None, v=h2a: v)
+        with pytest.raises(PermissionError):
+            nw.run_neural_spec(synthetic(), spec("T1", "lstm-S+N"), 0, "2001-01-01", device="cpu", epochs=1)
+    assert calls == []
     out = nw.run_neural_spec(synthetic(), spec("T1", "lstm-S"), 0, "2002-05-01", device="cpu", epochs=1)
     assert len(out) == 2
+
+
+def test_stale_model_rows_ignore_their_own_and_later_targets():
+    df = synthetic()
+    i = int(np.flatnonzero(df.index >= "2001-01-01")[0])
+    end = df.index[i + 7]
+    sp = spec("T2", "tft-S+N")
+    base = run(df, sp, df.index[i], end)
+    pert = df.copy()
+    pert.iloc[i:, pert.columns.get_indexer(["y_level", "y_change", "y_class"])] = [7.0, 7.0, 2]
+    again = run(pert, sp, df.index[i], end)
+    assert len(base) == 8
+    assert np.array_equal(base["y_pred"].to_numpy(), again["y_pred"].to_numpy())
+
+
+def test_t1_hybrid_ignores_rows_outside_training_window():
+    df = synthetic()
+    i = int(np.flatnonzero(df.index >= "2001-01-01")[0])
+    day = df.index[i]
+    sp = spec("T1", "hybrid-S+N")
+    base = run(df, sp, day, day)
+    pert = df.copy()
+    pert.iloc[i - 1:i + 1, pert.columns.get_indexer(["y_level", "y_change"])] = 7.0
+    pert.iloc[i - 1:i + 1, pert.columns.get_loc("y_class")] = 2
+    pert.iloc[i + 1:, :] = pert.iloc[i + 1:, :] * -3 + 5
+    assert run(pert, sp, day, day)["y_pred"].iloc[0] == base["y_pred"].iloc[0]
+
+
+def test_hybrid_anchor_refits_at_every_row(monkeypatch):
+    df = synthetic()
+    seen = []
+    real = nw._anchor
+    monkeypatch.setattr(nw, "_anchor", lambda Z, yc, ycl, r, task: seen.append(len(r)) or real(Z, yc, ycl, r, task))
+    run(df, spec("T2", "hybrid-S"), "2001-01-01", "2001-03-01")
+    # per-row anchors (3 rows) have strictly growing training sets; the rest are out-of-fold anchors
+    per_row = seen[-3:]
+    assert per_row == sorted(set(per_row)) and len(per_row) == 3
+
+
+def test_rejects_nan_target():
+    df = synthetic()
+    df.iloc[5, df.columns.get_loc("y_change")] = np.nan
+    with pytest.raises(ValueError, match="non-finite"):
+        run(df, spec("T1", "tft-S"), "2001-01-01")
+
+
+def test_empty_test_window_returns_empty_frame():
+    out = run(synthetic(), spec("T1", "lstm-S"), "2030-01-01")
+    assert len(out) == 0
+    assert list(out.columns) == ["date", "y_true", "y_pred", "lag", "class_true", "class_pred"]
+
+
+def test_level_target_learns_constant_level():
+    df = synthetic()
+    df["y_level"], df["y_change"], df["y_class"], df["s_rate_lag"] = 5.0, 0.0, 1, 5.0
+    out = nw.run_neural_spec(df, spec("T1", "lstm-S"), 0, "2001-01-01", "2001-02-01", device="cpu",
+                             require_prereg=False)
+    print("constant-level forecasts:", out["y_pred"].tolist())
+    assert len(out) == 2 and (out["y_pred"] - 5.0).abs().max() < 0.15

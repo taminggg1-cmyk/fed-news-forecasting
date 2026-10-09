@@ -4,7 +4,8 @@ Same rows, cutoffs and training masks as the primary engine (walkforward.train_m
 rows up to t-2, T2 on all earlier meetings. Features are standardised on each refit's training rows.
 The paper's LSTM/GRU and the meeting LSTM predict the level; the TFT predicts the change; the hybrid
 adds a TFT correction, trained on out-of-fold residuals, to the primary linear model's change.
-Between refits the last model (and its standardisation) forecasts the following rows.
+Between refits the last model (and its standardisation) forecasts the following rows;
+the hybrid's linear anchor is refit at every row like the primary model. Targets are standardised on the fit rows.
 """
 import subprocess
 from dataclasses import dataclass
@@ -127,14 +128,14 @@ def run_neural_spec(df: pd.DataFrame, spec: NeuralSpec, seed: int, test_start, t
     y_level, y_change, lag = (df[c].to_numpy(float) for c in ("y_level", "y_change", "s_rate_lag"))
     y_class = df["y_class"].to_numpy(int)
     n_epochs = spec.epochs if epochs is None else epochs
-    out, model, anchor_f, Z = [], None, None, None
+    cols_out = ["date", "y_true", "y_pred", "lag", "class_true", "class_pred"]
+    out, model, Z, t_mu, t_sd = [], None, None, 0.0, 1.0
     for k, i in enumerate(test):
         if k % spec.refit_every == 0:
             train = train_mask(n, i, spec.task)
             Z = standardise(X, train)
             rows = np.flatnonzero(train)
             if spec.anchor:
-                anchor_f = _anchor(Z, y_change, y_class, rows, spec.task)
                 fit_rows, target = oof_residuals(Z, y_change, y_class, rows, spec.task)
             else:
                 fit_rows = rows
@@ -143,18 +144,28 @@ def run_neural_spec(df: pd.DataFrame, spec: NeuralSpec, seed: int, test_start, t
             fit_rows, target = fit_rows[keep], target[keep]
             if len(fit_rows) < 2:
                 raise ValueError(f"{spec.name}: fewer than 2 training sequences at {dates[i].date()}")
+            t_mu, t_sd = float(target.mean()), float(target.std())
+            t_sd = t_sd if t_sd > 0 else 1.0
+            target = (target - t_mu) / t_sd
             Xs = make_sequences(Z, fit_rows, spec.lookback)
             model = build_model(spec.arch, len(spec.cols), spec.hidden, spec.dropout, seed)
             if spec.early_stop:
                 fit_early_stopping(model, Xs, target, spec.lr, n_epochs, TFT_PATIENCE, TFT_VAL_FRAC, device)
             else:
-                fit_fixed(model, Xs, target, spec.lr, n_epochs, device)
-        raw = float(predict(model, make_sequences(Z, np.array([i]), spec.lookback), device)[0])
+                fit_fixed(model, Xs, target, spec.lr, n_epochs, device, seed=seed)
+        raw = float(predict(model, make_sequences(Z, np.array([i]), spec.lookback), device)[0]) * t_sd + t_mu
         if spec.target == "level":
             change = raw - lag[i]
         else:
-            change = raw + (float(anchor_f(np.array([i]))[0]) if spec.anchor else 0.0)
+            change = raw
+            if spec.anchor:
+                # The anchor refits at every row, exactly as the primary linear model does.
+                train_i = train_mask(n, i, spec.task)
+                Z_i = standardise(X, train_i)
+                change += float(_anchor(Z_i, y_change, y_class, np.flatnonzero(train_i), spec.task)(np.array([i]))[0])
+        if not np.isfinite(change):
+            raise ValueError(f"{spec.name}: non-finite forecast at {dates[i].date()}")
         out.append({"date": dates[i], "y_true": y_level[i], "y_pred": lag[i] + change, "lag": lag[i],
                     "class_true": int(y_class[i]),
                     "class_pred": int(models.classes_from_change(np.array([change]))[0])})
-    return pd.DataFrame(out)
+    return pd.DataFrame(out, columns=cols_out)
