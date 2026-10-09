@@ -46,6 +46,7 @@ src/fed_news/
   neural_walk.py      NeuralSpec, neural_ladder, prereg_h2a_ok, standardise, oof_residuals, run_neural_spec
   run_neural.py       CLI: specs x seeds (resumable), run log, seed-mean ensembles
   evaluate_h2a.py     seed metrics, ensemble metrics, variance rule, tests, Holm, RESULTS_H2A.md
+  frozen.py           frozen-model analysis (train once before 2016 / 2020, never update): run + RESULTS_FROZEN.md
 tests/
   test_neural.py, test_neural_walk.py, test_run_neural.py, test_evaluate_h2a.py
 PREREG_H2A.md         settings fixed before any S+N neural run (Task 4)
@@ -822,6 +823,11 @@ This file fixes the settings the spec leaves open, before any neural forecast th
 - Variance rule: a gain counts only if mean RMSE(S) - mean RMSE(S+N) > 2 x max(sd RMSE(S), sd RMSE(S+N)) over the 8 seeds (ddof 1).
 - Holm adjustment across all H2 p-values (Plan 1 results/h2_pvalues.csv plus these); the final family is fixed after Plan 3.
 - Reported for every spec: per-seed mean +/- sd and ensemble RMSE, MAE, accuracy; the paper LSTM/GRU replication also on the paper window (Jan 2016 - Apr 2025) next to the paper's published values.
+
+## Frozen-model analysis (descriptive, as the paper's section 4.1 fixed-rule exercise)
+- Two cutoffs: train once on everything available before 2016-01-01 (T1: rows up to 2015-11, the t-2 rule; T2: meetings before 2016) and forecast every later month/meeting to Sep 2026 with no updating; the same with 2020-01-01.
+- Models: "no change" (random walk / always-hold); the Plan 1 linear primary model with S and with S+N; every Plan 2 neural spec (T1 lstm, gru, tft, hybrid; T2 mlstm, tft, hybrid) with S and S+N, 8 seeds, seed-mean ensembles; neural settings as above except that the model is fitted once.
+- Reported: RMSE, MAE, accuracy for each, next to the same model's walk-forward (updated) forecasts over the same months, and a one-sided DM p-value against "no change". These are descriptive: they are not part of the H2 Holm family and cannot change any verdict.
 ```
 
 - [ ] **Step 2: Commit and tag**
@@ -1094,8 +1100,288 @@ Expected: `RESULTS_H2A.md` written; the suite passes; the `git diff` prints noth
 
 ---
 
+### Task 7: Frozen-model analysis (train once, never update)
+
+**Files:**
+- Create: `src/fed_news/frozen.py`
+- Test: `tests/test_frozen.py`
+
+**Interfaces:**
+- Consumes: `neural_walk.neural_ladder`, `neural_walk.run_neural_spec`, `neural_walk.standardise`, `neural_walk.prereg_h2a_ok`; `walkforward.train_mask`, `walkforward.prereg_ok`; `models.choose_penalty`, `models.OrderedLogit`, `models.ridge_score`, `models.logloss_score`, `models.move_sizes`, `models.classes_from_change`; `run_neural.SEEDS`, `run_neural.ensemble`, `run_neural.ensemble_path`; `run_models.load_task`; `evaluate.metrics`; `stats_tests.dm_hln`; `config.RESULTS`, `config.REPO`, `config.RIDGE_GRID`, `config.ORDLOGIT_GRID`.
+- Produces: `frozen.STARTS = ("2016-01-01", "2020-01-01")`; `frozen.NEVER = 10**9`; `frozen.OUT` (`config.RESULTS / "frozen"`); `frozen.frozen_linear(df, cols, task, test_start) -> pd.DataFrame`; `frozen.frozen_rw(df, test_start) -> pd.DataFrame`; `frozen.run_all(device="cuda", seeds=run_neural.SEEDS)`; `frozen.report() -> pd.DataFrame` (writes `results/frozen/metrics.csv` and `RESULTS_FROZEN.md`); CLI `python -m fed_news.frozen [--device cuda] [--report-only]`. Prediction files: `results/frozen/preds_<task>_<model>_<yyyy>[_seed<k>].csv`, `<model>` in `rw`, `linear-S`, `linear-S+N` or a neural spec name, `<yyyy>` = 2016 or 2020.
+
+- [ ] **Step 1: Write the failing test `tests/test_frozen.py`**
+
+```python
+import numpy as np
+import pandas as pd
+
+from fed_news import config, frozen, neural_walk as nw, panel, run_neural
+
+
+def synthetic(n=90, seed=0):
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range("1995-01-01", periods=n, freq="MS")
+    df = pd.DataFrame(rng.normal(size=(n, len(panel.S_COLS))), index=idx, columns=panel.S_COLS)
+    for c in panel.M_COLS + panel.N_COLS:
+        df[c] = rng.normal(size=n)
+    df["t_u3"] = rng.normal(size=n)
+    df["s_rate_lag"] = 2.0
+    change = 0.25 * np.sign(df["n_stance"].to_numpy()) * (np.abs(df["n_stance"].to_numpy()) > 0.5)
+    df["y_change"], df["y_level"] = change, 2.0 + change
+    df["y_class"] = np.where(change > 0.02, 2, np.where(change < -0.02, 0, 1))
+    return df
+
+
+def test_frozen_linear_never_sees_test_period_targets(monkeypatch):
+    monkeypatch.setattr(frozen, "prereg_ok", lambda repo=None: True)
+    monkeypatch.setattr(frozen, "prereg_h2a_ok", lambda repo=None: True)
+    df = synthetic()
+    start = "2000-01-01"
+    i0 = int(np.flatnonzero(df.index >= start)[0])
+    for task in ("T1", "T2"):
+        first_unseen = i0 - 1 if task == "T1" else i0   # T1 trains on rows <= i0-2, T2 on rows < i0
+        base = frozen.frozen_linear(df, panel.S_COLS + panel.N_COLS, task, start)
+        pert = df.copy()
+        cols = pert.columns.get_indexer(["y_level", "y_change", "y_class"])
+        pert.iloc[first_unseen:, cols] = pert.iloc[first_unseen:, cols] * -3 + 5
+        again = frozen.frozen_linear(pert, panel.S_COLS + panel.N_COLS, task, start)
+        assert len(base) == int((df.index >= start).sum())
+        assert np.allclose(base["y_pred"], again["y_pred"])
+
+
+def test_frozen_rw_predicts_no_change():
+    out = frozen.frozen_rw(synthetic(), "2001-01-01")
+    assert (out["y_pred"] == out["lag"]).all() and (out["class_pred"] == 1).all()
+
+
+def test_frozen_neural_fits_exactly_once(monkeypatch):
+    df = synthetic()
+    calls = []
+    real = nw.build_model
+    monkeypatch.setattr(nw, "build_model", lambda *a, **k: calls.append(1) or real(*a, **k))
+    sp = {s.name: s for s in nw.neural_ladder("T1")}["tft-S"]
+    from dataclasses import replace
+    out = nw.run_neural_spec(df, replace(sp, refit_every=frozen.NEVER), 0, "2000-01-01", device="cpu",
+                             require_prereg=False, epochs=3)
+    assert len(calls) == 1 and len(out) == int((df.index >= "2000-01-01").sum())
+
+
+def test_run_all_and_report_with_fakes(tmp_path, monkeypatch):
+    monkeypatch.setattr(frozen, "OUT", tmp_path / "frozen")
+    monkeypatch.setattr(config, "RESULTS", tmp_path)
+    monkeypatch.setattr(config, "REPO", tmp_path)
+    monkeypatch.setattr(run_neural, "OUT", tmp_path / "h2a")
+    df = synthetic(n=400)
+    monkeypatch.setattr(frozen, "load_task", lambda task: df)
+    monkeypatch.setattr(frozen, "prereg_ok", lambda repo=None: True)
+    monkeypatch.setattr(frozen, "prereg_h2a_ok", lambda repo=None: True)
+
+    def fake_neural(d, spec, seed, start, device="cuda"):
+        rw = frozen.frozen_rw(d, start)
+        rw["y_pred"] = rw["y_pred"] + 0.01 * seed
+        return rw
+
+    monkeypatch.setattr(frozen, "run_neural_spec", fake_neural)
+    frozen.run_all(device="cpu", seeds=run_neural.SEEDS)
+    for task in ("T1", "T2"):
+        for yyyy in ("2016", "2020"):
+            assert (tmp_path / "frozen" / f"preds_{task}_linear-S+N_{yyyy}.csv").exists()
+            assert (tmp_path / "frozen" / f"preds_{task}_tft-S_{yyyy}.csv").exists()
+    table = frozen.report()
+    assert {"task", "start", "model", "rmse", "mae", "accuracy", "p_vs_no_change"} <= set(table.columns)
+    assert (tmp_path / "RESULTS_FROZEN.md").exists()
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `$PY -m pytest tests/test_frozen.py -v`
+Expected: FAIL with `ImportError: cannot import name 'frozen'`
+
+- [ ] **Step 3: Write `src/fed_news/frozen.py`**
+
+```python
+"""Frozen-model analysis (PREREG_H2A.md; the paper's section 4.1 fixed-rule exercise).
+
+Every model is trained once on what was available before 2016-01-01 (or 2020-01-01) and then forecasts
+every later month or meeting without updating. Compared with the same models refitted every month in
+the main analysis, this shows whether rules learned before a date still hold afterwards. Descriptive:
+not part of the H2 Holm family.
+"""
+import argparse
+from dataclasses import replace
+
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import Ridge
+
+from fed_news import config, models, run_neural
+from fed_news.evaluate import metrics
+from fed_news.neural_walk import neural_ladder, prereg_h2a_ok, run_neural_spec, standardise
+from fed_news.panel import N_COLS, S_COLS
+from fed_news.run_models import load_task
+from fed_news.stats_tests import dm_hln
+from fed_news.walkforward import prereg_ok, train_mask
+
+STARTS = ("2016-01-01", "2020-01-01")
+NEVER = 10 ** 9
+OUT = config.RESULTS / "frozen"
+COLUMNS = ["date", "y_true", "y_pred", "lag", "class_true", "class_pred"]
+
+
+def _arrays(df):
+    return (df["y_level"].to_numpy(float), df["y_change"].to_numpy(float), df["y_class"].to_numpy(int),
+            df["s_rate_lag"].to_numpy(float))
+
+
+def _frame(df, test, y_pred, class_pred) -> pd.DataFrame:
+    y_level, _, y_class, lag = _arrays(df)
+    return pd.DataFrame({"date": df.index[test], "y_true": y_level[test], "y_pred": y_pred, "lag": lag[test],
+                         "class_true": y_class[test], "class_pred": class_pred})[COLUMNS]
+
+
+def frozen_rw(df, test_start) -> pd.DataFrame:
+    test = np.flatnonzero(df.index >= pd.Timestamp(test_start))
+    lag = df["s_rate_lag"].to_numpy(float)
+    return _frame(df, test, lag[test], np.ones(len(test), dtype=int))
+
+
+def frozen_linear(df, cols, task, test_start) -> pd.DataFrame:
+    if any(c in N_COLS for c in cols) and not (prereg_ok() and prereg_h2a_ok()):
+        raise PermissionError("news columns need tags 'prereg' and 'prereg-h2a'")
+    test = np.flatnonzero(df.index >= pd.Timestamp(test_start))
+    train = train_mask(len(df), test[0], task)
+    rows = np.flatnonzero(train)
+    Z = standardise(df[cols].to_numpy(float), train)
+    _, y_change, y_class, lag = _arrays(df)
+    if task == "T1":
+        alpha = models.choose_penalty(lambda a: Ridge(alpha=a), models.ridge_score, Z[rows], y_change[rows],
+                                      config.RIDGE_GRID)
+        change = Ridge(alpha=alpha).fit(Z[rows], y_change[rows]).predict(Z[test])
+        cls = models.classes_from_change(change)
+    else:
+        lam = models.choose_penalty(models.OrderedLogit, models.logloss_score, Z[rows], y_class[rows],
+                                    config.ORDLOGIT_GRID)
+        proba = models.OrderedLogit(lam).fit(Z[rows], y_class[rows]).predict_proba(Z[test])
+        change = proba @ models.move_sizes(y_class[rows], y_change[rows])
+        cls = proba.argmax(axis=1)
+    return _frame(df, test, lag[test] + change, cls)
+
+
+def _path(task, model, start, seed=None):
+    suffix = "" if seed is None else f"_seed{seed}"
+    return OUT / f"preds_{task}_{model}_{start[:4]}{suffix}.csv"
+
+
+def run_all(device: str = "cuda", seeds=run_neural.SEEDS) -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    for task in ("T1", "T2"):
+        df = load_task(task)
+        for start in STARTS:
+            frozen_rw(df, start).to_csv(_path(task, "rw", start), index=False)
+            for label, cols in (("S", S_COLS), ("S+N", S_COLS + N_COLS)):
+                frozen_linear(df, cols, task, start).to_csv(_path(task, f"linear-{label}", start), index=False)
+            for spec in neural_ladder(task):
+                for seed in seeds:
+                    path = _path(task, spec.name, start, seed)
+                    if not path.exists():
+                        run_neural_spec(df, replace(spec, refit_every=NEVER), seed, start,
+                                        device=device).to_csv(path, index=False)
+                files = [_path(task, spec.name, start, s) for s in run_neural.SEEDS]
+                if all(p.exists() for p in files):
+                    frames = [pd.read_csv(p, parse_dates=["date"]) for p in files]
+                    run_neural.ensemble(frames).to_csv(_path(task, spec.name, start), index=False)
+
+
+def _updated(task, model, start) -> pd.DataFrame | None:
+    """The same model's walk-forward forecasts, cut to the frozen test months."""
+    if model.startswith("linear-"):
+        path = config.RESULTS / f"preds_{task}_{model.split('-', 1)[1]}.csv"
+    elif model == "rw":
+        path = config.RESULTS / f"preds_{task}_rw.csv"
+    else:
+        path = run_neural.ensemble_path(task, model)
+    if not path.exists():
+        return None
+    p = pd.read_csv(path, parse_dates=["date"])
+    return p[p["date"] >= pd.Timestamp(start)]
+
+
+def report() -> pd.DataFrame:
+    rows = []
+    for task in ("T1", "T2"):
+        names = ["rw", "linear-S", "linear-S+N"] + [s.name for s in neural_ladder(task)]
+        for start in STARTS:
+            rw = pd.read_csv(_path(task, "rw", start), parse_dates=["date"])
+            for model in names:
+                path = _path(task, model, start)
+                if not path.exists():
+                    continue
+                p = pd.read_csv(path, parse_dates=["date"])
+                sq = lambda f: ((f["y_pred"] - f["y_true"]) ** 2).to_numpy()
+                p_rw = np.nan if model == "rw" else dm_hln(sq(rw), sq(p))[1]
+                row = {"task": task, "start": start[:4], "model": model, "version": "frozen",
+                       **metrics(p), "p_vs_no_change": p_rw}
+                rows.append(row)
+                upd = _updated(task, model, start)
+                if upd is not None and len(upd):
+                    rows.append({"task": task, "start": start[:4], "model": model, "version": "updated",
+                                 **metrics(upd), "p_vs_no_change": np.nan})
+    table = pd.DataFrame(rows)
+    OUT.mkdir(parents=True, exist_ok=True)
+    table.to_csv(OUT / "metrics.csv", index=False)
+    lines = [
+        "# Results: frozen models (train once, never update)", "",
+        "Descriptive analysis from PREREG_H2A.md, modelled on the paper's fixed-rule exercise. Each model is "
+        "trained once on data before 2016 (or 2020) and forecasts every later month or meeting; 'updated' is "
+        "the same model refitted every month or meeting in the main analysis, over the same period. "
+        "p_vs_no_change is a one-sided DM test against the no-change forecast; it is not part of any "
+        "pre-registered decision.", "",
+        table.round(4).to_markdown(index=False), "",
+    ]
+    (config.REPO / "RESULTS_FROZEN.md").write_text("\n".join(lines), encoding="utf-8")
+    return table
+
+
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--device", default="cuda")
+    ap.add_argument("--report-only", action="store_true")
+    args = ap.parse_args(argv)
+    if not args.report_only:
+        run_all(device=args.device)
+    print(report().round(4).to_string(index=False))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `$PY -m pytest tests/test_frozen.py -v`
+Expected: 4 passed
+
+- [ ] **Step 5: Run the frozen analysis (GPU, under an hour), the full suite, commit**
+
+```bash
+PYTHONPATH=src nohup $PY -u -m fed_news.frozen --device cuda > logs/frozen.log 2>&1 &
+# when finished:
+tail -40 logs/frozen.log
+$PY -m pytest -q
+git diff prereg -- src/fed_news/walkforward.py src/fed_news/evaluate.py src/fed_news/run_models.py src/fed_news/models.py
+git add src/fed_news/frozen.py tests/test_frozen.py RESULTS_FROZEN.md results/frozen/
+git commit -m "Add frozen-model analysis (train once before 2016/2020, never update)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+Expected: the log ends with the metrics table; `RESULTS_FROZEN.md` written; suite passes; the `git diff` prints nothing.
+
+---
+
 ## Self-review notes
 
+- Frozen analysis (PREREG_H2A.md section "Frozen-model analysis"): Task 7, reusing the Task 2 engine with `refit_every = NEVER` for neural models and a one-fit version of the Plan 1 linear models.
 - Spec coverage: section 7 paper LSTM/GRU (Task 2 ladder, Task 4 one-hour rule), meeting LSTM, TFT, hybrid with out-of-fold residuals (Task 2); section 3 H2a tests and section 8 variance rule plus Holm (Task 6); section 11 leakage tests for the new engine (Task 2 perturbation tests, prereg guard, non-finite refusal).
 - Settings the spec leaves open (batch size, TFT learning rate, epochs and patience, meeting-LSTM width, hybrid refit schedule, variance-rule formula, ensemble = seed mean) are fixed in `PREREG_H2A.md` and tagged before any S+N neural run.
 - Plan 1 code is imported only; Tasks 2 and 6 check `git diff prereg` on the H1 files.
