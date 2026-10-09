@@ -811,7 +811,7 @@ This file fixes the settings the spec leaves open, before any neural forecast th
 ## Settings
 - Paper LSTM (T1): 12 steps, 240 units, 1 layer, no dropout, Adam lr 1e-4, 300 epochs, batch 32 shuffled per epoch (seeded), MSE on the standardised target, predicts the level, refit every month.
 - Paper GRU (T1): 12 steps, 188 units, 1 layer, no dropout, Adam lr 2e-4, 449 epochs, batch 32 shuffled per epoch (seeded), MSE on the standardised target, predicts the level, refit every month.
-- One-hour rule: if `T1/lstm-S/seed0` takes longer than 3,600 s, all paper LSTM/GRU T1 specs are run with refit every 3 months instead, recorded in DEVIATIONS.md.
+- One-hour rule: `T1/lstm-S/seed0` is timed first, then (only if it took at most 3,600 s) `T1/gru-S/seed0`; if either takes longer than 3,600 s, all paper LSTM/GRU T1 specs are run with refit every 3 months instead, recorded in DEVIATIONS.md.
 - Meeting LSTM (T2): lookback 4 meetings, refit every 8 meetings, otherwise as the paper LSTM.
 - TFT: CompactTFT (gold_gpt2/src/tft.py, vendored unchanged), hidden 32, 4 heads, dropout 0.2, lookback 12 months / 8 meetings, Adam lr 1e-3, full batch, at most 300 epochs, early stopping on the chronologically last 20% of training rows with patience 20 (best epoch kept; the untrained weights count as epoch 0), refit every 12 months / 8 meetings, predicts the change.
 - Hybrid: anchor = Plan 1 primary model (T1 ridge on the change, T2 penalised ordered logit expected change, penalties by 5-fold expanding CV), refitted at every test row as in Plan 1; TFT (refitted on its schedule) trained on out-of-fold anchor residuals (5 expanding folds inside the training window, folds whose training part has fewer than 20 rows skipped); forecast = lag + anchor change + TFT correction.
