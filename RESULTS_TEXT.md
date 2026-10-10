@@ -10,24 +10,43 @@ H5 (pre-registered in PREREG_TEXT.md, tag prereg-text): the Fed stance surprise 
 |:-----------|---------:|-------:|-------:|------------:|------------:|:--------------|----------------:|---------------:|------------:|--------------:|-----------:|-----------------:|--------------:|--------:|------------:|------------:|------------------:|
 | chronobert |     1778 | 1.1307 | 0.1291 |     -0.2066 |      0.5818 | not supported |          0.5047 |         0.1452 |         206 |        0.3799 |       1350 |           0.1686 |           222 |    1778 |      3.3912 |      1.5859 |            0.0564 |
 
+The daily test is conservative for releases after the 2-year yield's afternoon quote (late speeches, the end of press conferences): those are matched to a yield fixed before they happened, which biases the test toward no effect.
+
+About 30% of test events follow an event on the previous trading day, so the void-rule outcome there is the previous event's own outcome.
+
+Method details: press conferences are grouped with statements; MIN_TRAIN never binds; the first events (no earlier trading day pair) are dropped; zero-change days are excluded from sign accuracy.
+
 ## Look-ahead comparison (exploratory, added after results)
 
-Naive model: answerdotai/ModernBERT-base, fine-tuned on all labels at once (deliberate look-ahead).
+Direct tests of the naive pipeline against ChronoBERT on the same dates (column dm_p_naive_vs_chrono: DM-HLN p that the naive forecast is better; Clark-West is not meaningful because the models are not nested):
 
-| task   | pipeline                       |   n |   rmse |   rmse_S |   change_vs_S_pct |   dm_hln_p |   clark_west_t |   clark_west_p |
-|:-------|:-------------------------------|----:|-------:|---------:|------------------:|-----------:|---------------:|---------------:|
-| T1     | chronobert (time-consistent)   | 308 | 0.1664 |   0.1798 |           -7.4599 |     0.0769 |         2.0398 |         0.0207 |
-| T1     | naive (ModernBERT, all labels) | 308 | 0.1627 |   0.1798 |           -9.5261 |     0.0429 |         2.1468 |         0.0159 |
-| T2     | chronobert (time-consistent)   | 212 | 0.1994 |   0.2052 |           -2.8301 |     0.0609 |         3.0307 |         0.0012 |
-| T2     | naive (ModernBERT, all labels) | 212 | 0.1988 |   0.2052 |           -3.0885 |     0.0657 |         2.9405 |         0.0016 |
+| task   | pipeline                       |   n |   rmse |   rmse_S |   change_vs_S_pct |   dm_hln_p |   clark_west_t |   clark_west_p |   dm_p_naive_vs_chrono |
+|:-------|:-------------------------------|----:|-------:|---------:|------------------:|-----------:|---------------:|---------------:|-----------------------:|
+| T1     | chronobert (time-consistent)   | 308 | 0.1664 |   0.1798 |           -7.4599 |     0.0769 |         2.0398 |         0.0207 |               nan      |
+| T1     | naive (ModernBERT, all labels) | 308 | 0.1627 |   0.1798 |           -9.5261 |     0.0429 |         2.1468 |         0.0159 |                 0.0552 |
+| T2     | chronobert (time-consistent)   | 212 | 0.1994 |   0.2052 |           -2.8301 |     0.0609 |         3.0307 |         0.0012 |               nan      |
+| T2     | naive (ModernBERT, all labels) | 212 | 0.1988 |   0.2052 |           -3.0885 |     0.0657 |         2.9405 |         0.0016 |                 0.4028 |
 
-Event study with the naive stance:
+Event study, both pipelines on their common test days (exploratory, added after results; MSE ratio = large model over small model):
 
-| pipeline   |   n_test |   cw_t |   cw_p |   void_cw_t |   void_cw_p | verdict   |   sign_accuracy |   cw_p_minutes |   n_minutes |   cw_p_speech |   n_speech |   cw_p_statement |   n_statement |   ols_n |   ols_slope |   ols_t_hac |   ols_p_one_sided |
-|:-----------|---------:|-------:|-------:|------------:|------------:|:----------|----------------:|---------------:|------------:|--------------:|-----------:|-----------------:|--------------:|--------:|------------:|------------:|------------------:|
-| naive      |     1778 | 1.6662 | 0.0478 |     -0.4425 |      0.6709 | supported |          0.4987 |         0.5728 |         206 |        0.1032 |       1350 |           0.0974 |           222 |    1778 |      3.1422 |      2.2335 |            0.0128 |
+|   n_common |   mse_small_chrono |   mse_large_chrono |   mse_ratio_chrono |   mse_small_naive |   mse_large_naive |   mse_ratio_naive |   dm_p_naive_vs_chrono |
+|-----------:|-------------------:|-------------------:|-------------------:|------------------:|------------------:|------------------:|-----------------------:|
+|       1778 |            33.9075 |            33.9367 |             1.0009 |           33.9075 |           33.8544 |            0.9984 |                 0.1361 |
+
+The naive pipeline differs in at least four ways: the language model (one ModernBERT instead of 27 ChronoBERT vintages), label dating (all labels at once), label count (3,074 against 418-2,438 after the 20% hold-out) and overlap (its training sentences come from the documents it scores). Its stance correlates 0.58 with ChronoBERT's. The comparison illustrates a typical pipeline; it does not isolate look-ahead, and the gap is not statistically significant.
+
+Naive model: answerdotai/ModernBERT-base
+revision 8949b909ec900327062f0ebf497f51aef5e6f0c8 (local Hugging Face cache, refs/main at run time), fine-tuned on all labels at once (deliberate look-ahead).
+
+Event study with the naive stance (exploratory, added after results; no H5 verdict, which applies only to the pre-registered ChronoBERT pipeline):
+
+| pipeline   |   n_test |   cw_t |   cw_p |   void_cw_t |   void_cw_p |   sign_accuracy |   cw_p_minutes |   n_minutes |   cw_p_speech |   n_speech |   cw_p_statement |   n_statement |   ols_n |   ols_slope |   ols_t_hac |   ols_p_one_sided |
+|:-----------|---------:|-------:|-------:|------------:|------------:|----------------:|---------------:|------------:|--------------:|-----------:|-----------------:|--------------:|--------:|------------:|------------:|------------------:|
+| naive      |     1778 | 1.6662 | 0.0478 |     -0.4425 |      0.6709 |          0.4987 |         0.5728 |         206 |        0.1032 |       1350 |           0.0974 |           222 |    1778 |      3.1422 |      2.2335 |            0.0128 |
 
 ## Market benchmark (descriptive)
+
+Descriptive. Headline row: the 3-month bill on the full sample. Its DM p-values are not tests. The expanding-mean spread drifts over time (the bill-to-rate gap shrank from the 1990s to the 2020s), so the bill forecast is biased upward and is a weak benchmark; do not read this table as text beating the market.
 
 | task   | window   | bill_dates   | model   |   n |    mse |   rmse |    mae |     mbe |   accuracy |   macro_f1 |   p_vs_no_change |   p_vs_bill |
 |:-------|:---------|:-------------|:--------|----:|-------:|-------:|-------:|--------:|-----------:|-----------:|-----------------:|------------:|
@@ -64,6 +83,8 @@ Event study with the naive stance:
 
 ## Ablation (exploratory, added after results)
 
+Unadjusted p-values from 12 exploratory comparisons; descriptive only.
+
 | task   | model          |   rmse |   accuracy |   change_vs_S_pct |   n |   dm_hln_p |   clark_west_t |   clark_west_p |
 |:-------|:---------------|-------:|-----------:|------------------:|----:|-----------:|---------------:|---------------:|
 | T1     | S+N (all)      | 0.1664 |     0.539  |           -7.4599 | 308 |     0.0769 |         2.0398 |         0.0207 |
@@ -84,4 +105,9 @@ Event study with the naive stance:
 ## Provenance
 
 - prereg-text tag commit: 8d2c5c197d2b6dbaa131053067d246e8a966dd7a
-- HEAD: 8d2c5c1
+- HEAD: f8c8abf
+- sha256 (first 16 hex) doc_stance.pkl: 511dd312f363069b
+- sha256 (first 16 hex) doc_stance_naive.pkl: d990364251528f69
+- sha256 (first 16 hex) market_bill.pkl: 0bdc7577a91e2d15
+- naive_model.txt: answerdotai/ModernBERT-base
+revision 8949b909ec900327062f0ebf497f51aef5e6f0c8 (local Hugging Face cache, refs/main at run time)

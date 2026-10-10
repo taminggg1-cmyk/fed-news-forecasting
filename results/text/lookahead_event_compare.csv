@@ -1,0 +1,2 @@
+n_common,mse_small_chrono,mse_large_chrono,mse_ratio_chrono,mse_small_naive,mse_large_naive,mse_ratio_naive,dm_p_naive_vs_chrono
+1778,33.907469015999624,33.936672307324415,1.0008612642633696,33.907469015999624,33.85435636826936,0.99843360034613,0.13613746550370065
