@@ -41,3 +41,8 @@
 - Method details not in the spec: press conferences are grouped with statements; MIN_TRAIN never binds; the first events (no earlier trading day pair) are dropped; zero-change days are excluded from sign accuracy.
 - Commit 658f1a0 also regenerated RESULTS.md and RESULTS_H2A.md: only the provenance and the mirrored deviation notes changed, no number.
 - Pre-registration timestamps are local git metadata (lightweight tags, no remote).
+
+### Study 2 notes
+
+- Added after tag `prereg-study2` and before any Study 2 result (while the FRASER texts were still downloading; no regional speech had been scored and no new event-day yield change computed): an exploratory frozen analysis (`src/fed_news/study2_frozen.py`, report `RESULTS_STUDY2_FROZEN.md`). The event model and the Plan 1 primary model with the Study 2 Fed-stance features are fitted once before 2016-01-01 or 2020-01-01 and never updated. Descriptive only; it is not part of H6 and cannot change its verdict.
+- Before the tag, review-driven fixes changed the regional corpus (bank of the speaker taken from the "President ... of the Federal Reserve Bank of X" phrase; all vice-president variants excluded) and `stance2` (full part fingerprint, unique document ids) and made `study2` keep the H6 result if a secondary set fails.
