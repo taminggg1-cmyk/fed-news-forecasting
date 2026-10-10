@@ -124,10 +124,14 @@
 - Plan 2: run command: `PYTHONPATH=src python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda` (TFT/hybrid specs were run first with `--only`).
 - Plan 2: after the results were known (final-review fixes, exploratory): `neural.fit_early_stopping` records the kept epoch as `best_epoch_` (training, return value and numbers unchanged); `run_neural --paper-refit-every` now defaults to 3; `evaluate_h2a.py` and `frozen.py` report text was extended and results/h2a/ensemble_metrics.csv gained six context rows (random walk and Plan 1 linear); `diag_tft.py` is new. No forecast file was changed or regenerated. Exploratory additions are labelled "exploratory, added after results" in RESULTS_H2A.md.
 
+### Post-results exploratory analyses
+
+- Clark-West (2007) test for nested models, linear S vs S+N (`src/fed_news/clark_west.py`, output `results/exploratory/clark_west.csv`), chosen after the results were known because the pre-registered Diebold-Mariano test is undersized for nested comparisons: T1 t = 2.04, p = 0.021 (308 months); T2 t = 3.03, p = 0.001 (212 meetings). Exploratory only; it does not change the H1 verdict.
+
 ## Provenance
 
 - prereg tag commit: 5d0c31c0e319cf995c298c38a3bf8abcf7d0f559
-- HEAD: 6a24e0aca7c275595c9611bc83704f7ebb15a7ad
+- HEAD: d76b80dfb4e23174d1ddfe863148546b96721d37
 - `git diff --stat prereg -- src`:
 
 ```

@@ -151,7 +151,7 @@ The same code and seeds re-run once more, to bound GPU floating-point nondetermi
 ## Provenance
 
 - prereg-h2a tag commit: e931dfc3d5142e506330a35d7c4f005d4f7593af
-- HEAD: 6a24e0a
+- HEAD: d76b80d
 - `git diff --stat prereg-h2a -- src`:
 
 ```
