@@ -4,6 +4,8 @@ Secondary analyses; they cannot change the H1 verdict in RESULTS.md. Settings: P
 
 ## Ensemble metrics (mean of 8 seeds' forecasts), test windows from 2001
 
+Rows with arch rw and linear are the Plan 1 random walk and linear S / S+N models, for context.
+
 | task   | arch   | info   |   n |    mse |   rmse |    mae |     mbe |   accuracy |   macro_f1 |
 |:-------|:-------|:-------|----:|-------:|-------:|-------:|--------:|-----------:|-----------:|
 | T1     | lstm   | S      | 308 | 0.1930 | 0.4393 | 0.3119 |  0.1616 |     0.3896 |     0.3614 |
@@ -20,6 +22,12 @@ Secondary analyses; they cannot change the H1 verdict in RESULTS.md. Settings: P
 | T2     | tft    | S+N    | 212 | 0.0618 | 0.2486 | 0.1731 | -0.0560 |     0.5566 |     0.3641 |
 | T2     | hybrid | S      | 212 | 0.0584 | 0.2417 | 0.1611 | -0.0186 |     0.6415 |     0.5176 |
 | T2     | hybrid | S+N    | 212 | 0.0507 | 0.2252 | 0.1572 | -0.0323 |     0.5991 |     0.4278 |
+| T1     | rw     |        | 308 | 0.0329 | 0.1813 | 0.0917 |  0.0087 |     0.5260 |     0.2298 |
+| T1     | linear | S      | 308 | 0.0323 | 0.1798 | 0.1127 | -0.0304 |     0.5584 |     0.4147 |
+| T1     | linear | S+N    | 308 | 0.0277 | 0.1664 | 0.1096 | -0.0115 |     0.5390 |     0.4233 |
+| T2     | rw     |        | 212 | 0.0582 | 0.2411 | 0.1256 |  0.0124 |     0.6604 |     0.2652 |
+| T2     | linear | S      | 212 | 0.0421 | 0.2052 | 0.1354 | -0.0309 |     0.6792 |     0.4969 |
+| T2     | linear | S+N    | 212 | 0.0397 | 0.1994 | 0.1298 | -0.0220 |     0.6981 |     0.5431 |
 
 ## Per-seed metrics, mean and standard deviation over 8 seeds
 
@@ -42,15 +50,19 @@ Secondary analyses; they cannot change the H1 verdict in RESULTS.md. Settings: P
 
 ## Paper replication on the paper's window (Jan 2016 - Apr 2025), T1
 
-| model                          |    mse |   rmse |    mae |      mbe |
-|:-------------------------------|-------:|-------:|-------:|---------:|
-| paper LSTM (Table 2)           | 0.0565 | 0.2376 | 0.1495 |  -0.0006 |
-| paper GRU (Table 2)            | 0.0732 | 0.2705 | 0.1327 |   0.0091 |
-| paper LLM, lookahead (Table 3) | 0.0311 | 0.1762 | 0.1483 | nan      |
-| our LSTM replication, S        | 0.1725 | 0.4154 | 0.2925 |   0.1028 |
-| our LSTM replication, S+N      | 0.1850 | 0.4301 | 0.2848 |  -0.0164 |
-| our GRU replication, S         | 0.4181 | 0.6466 | 0.3550 |   0.1887 |
-| our GRU replication, S+N       | 0.3172 | 0.5632 | 0.3326 |   0.0733 |
+| model                                                              |    mse |   rmse |    mae |      mbe |
+|:-------------------------------------------------------------------|-------:|-------:|-------:|---------:|
+| paper LSTM (Table 2)                                               | 0.0565 | 0.2376 | 0.1495 |  -0.0006 |
+| paper GRU (Table 2)                                                | 0.0732 | 0.2705 | 0.1327 |   0.0091 |
+| paper LLM, lookahead (Table 3)                                     | 0.0311 | 0.1762 | 0.1483 | nan      |
+| our LSTM, S (refit every 3 months; paper: monthly; real-time data) | 0.1725 | 0.4154 | 0.2925 |   0.1028 |
+| our LSTM, S+N (not in paper; refit every 3 months, real-time data) | 0.1850 | 0.4301 | 0.2848 |  -0.0164 |
+| our GRU, S (refit every 3 months; paper: monthly; real-time data)  | 0.4181 | 0.6466 | 0.3550 |   0.1887 |
+| our GRU, S+N (not in paper; refit every 3 months, real-time data)  | 0.3172 | 0.5632 | 0.3326 |   0.0733 |
+
+## Reading of the tests
+
+There are 10 H2a tests (a one-sided DM test per architecture, plus a McNemar test for each T2 architecture). After Holm across all H2 p-values so far, 0 of 10 have an adjusted p below 0.05 (smallest adjusted p: 0.1177, H2a T1 hybrid DM). 2 of 10 have a raw one-sided p below 0.05: H2a T1 hybrid DM (p = 0.0084); H2a T2 hybrid DM (p = 0.0115). 1 of those 2 also pass the variance rule: H2a T1 hybrid DM (p = 0.0084). The holm_h2_so_far values can only rise when Plan 3 adds hypotheses, so they are lower bounds of the final adjusted p-values. PREREG_H2A.md defines the per-test p-value, the variance rule and the Holm correction, but no per-architecture verdict: these are counts of tests, not of models.
 
 ## Tests: S+N vs S per architecture (one-sided), Holm across all H2 so far
 
@@ -73,3 +85,63 @@ The variance rule: a gain counts only if mean RMSE(S) - mean RMSE(S+N) exceeds t
 | H2a T2 tft McNemar          | 0.5000 |           1.0000 | False           |
 | H2a T2 hybrid DM            | 0.0115 |           0.1460 | False           |
 | H2a T2 hybrid McNemar       | 0.9414 |           1.0000 | False           |
+
+## Exploratory analyses (exploratory, added after results)
+
+Added after the results were known, following the final review. Not pre-registered; they do not change any test above.
+
+### Hybrid against its own linear anchor and against the random walk (exploratory, added after results)
+
+One-sided DM p-values on the seed-mean ensembles; the anchor is the Plan 1 forecast results/preds_<task>_<S|S+N>.csv. A small p means the anchor (or the random walk) is better.
+
+| task   | info   |   hybrid rmse |   own anchor rmse |   rw rmse |   p anchor beats hybrid |   p rw beats hybrid |
+|:-------|:-------|--------------:|------------------:|----------:|------------------------:|--------------------:|
+| T1     | S      |        0.2034 |            0.1798 |    0.1813 |                  0.0000 |              0.0343 |
+| T1     | S+N    |        0.1812 |            0.1664 |    0.1813 |                  0.0000 |              0.5039 |
+| T2     | S      |        0.2417 |            0.2052 |    0.2411 |                  0.0000 |              0.4836 |
+| T2     | S+N    |        0.2252 |            0.1994 |    0.2411 |                  0.0000 |              0.9104 |
+
+### MSE decomposition of the hybrid S vs S+N gap (exploratory, added after results)
+
+| task   |   hybrid mse gap |   linear mse gap (Plan 1) |   remainder (TFT corrections) |
+|:-------|-----------------:|--------------------------:|------------------------------:|
+| T1     |          0.00854 |                   0.00465 |                       0.00390 |
+| T2     |          0.00769 |                   0.00235 |                       0.00534 |
+
+### Best epoch kept by the TFT early stopping (exploratory, added after results)
+
+Epoch 0 means the untrained weights were kept. All 8 seeds, every refit.
+
+best-epoch diagnostic not run
+
+### GPU re-run of the TFT and hybrid specs (exploratory, added after results)
+
+re-run not done
+
+## Deviations
+
+### Plan 2 (H2a) deviations
+
+- Plan 2: T1/gru-S/seed0 took more than 3,600 s (the timing run was stopped 3,720 s after the process started, so the seed-pass exceeded 3,600 s); T1/lstm-S/seed0 took 3,039 s. Per PREREG_H2A.md all paper LSTM/GRU T1 specs run with refit every 3 months. The refit-every-month pilot forecasts were deleted unused. LSTM pilot 2026-10-09 17:44:49-18:35:34 (3,038.6 s seed-pass); GRU pilot started 18:35:46 and was stopped by a watchdog at 19:37:46 (3,720 s after start; 3,600 s plus 120 s for imports/data loading, which the runner's timer excludes). GRU at refit every 3 months later took 1,230-1,280 s per seed-pass, about 3,700-3,800 s if scaled to monthly refits.
+- Plan 2: after tag `prereg-h2a`, `neural_walk.run_neural_spec` gained a keyword `anchor_every_row` (default True, the pre-registered behaviour, unchanged). Only the descriptive frozen-model analysis passes False, so a frozen hybrid's linear anchor is fitted once, like every other frozen model.
+- Plan 2: run order changed to TFT and hybrid specs first, then the rest; each spec's forecasts depend only on its own settings and seed, so the order changes no result, up to GPU floating-point nondeterminism (see RESULTS_H2A.md exploratory section).
+- Plan 2: run command: `PYTHONPATH=src python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda` (TFT/hybrid specs were run first with `--only`).
+- Plan 2: after the results were known (final-review fixes, exploratory): `neural.fit_early_stopping` records the kept epoch as `best_epoch_` (training, return value and numbers unchanged); `run_neural --paper-refit-every` now defaults to 3; `evaluate_h2a.py` and `frozen.py` report text was extended; `diag_tft.py` is new. No forecast file was changed or regenerated. Exploratory additions are labelled "exploratory, added after results" in RESULTS_H2A.md.
+
+## Provenance
+
+- prereg-h2a tag commit: e931dfc3d5142e506330a35d7c4f005d4f7593af
+- HEAD: 74c20cc
+- `git diff --stat prereg-h2a -- src`:
+
+```
+src/fed_news/diag_tft.py     | 128 +++++++++++++++++++++++
+ src/fed_news/evaluate_h2a.py | 239 +++++++++++++++++++++++++++++++++++++++++++
+ src/fed_news/frozen.py       | 167 ++++++++++++++++++++++++++++++
+ src/fed_news/neural.py       |   6 +-
+ src/fed_news/neural_walk.py  |  19 ++--
+ src/fed_news/run_neural.py   |   3 +-
+ 6 files changed, 553 insertions(+), 9 deletions(-)
+```
+
+evaluate_h2a.py was committed (0554690) before the first forecast file was written.

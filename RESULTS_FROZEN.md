@@ -1,6 +1,6 @@
 # Results: frozen models (train once, never update)
 
-Descriptive analysis from PREREG_H2A.md, modelled on the paper's fixed-rule exercise. Each model is trained once on data before 2016 (or 2020) and forecasts every later month or meeting; 'updated' is the same model refitted every month or meeting in the main analysis, over the same period. p_vs_no_change is a one-sided DM test against the no-change forecast; it is not part of any pre-registered decision.
+Descriptive analysis from PREREG_H2A.md, modelled on the paper's fixed-rule exercise. Each model is trained once on data before 2016 (or 2020) and forecasts every later month or meeting; 'updated' is the same model in the main walk-forward analysis with its pre-registered schedule, over the same period: linear models refit every month or meeting; the paper's LSTM/GRU every 3 months (one-hour rule); the TFT and the hybrid's TFT every 12 months / 8 meetings (the hybrid's linear anchor at every row); the meeting LSTM every 8 meetings. p_vs_no_change is a one-sided DM test against the no-change forecast; it is not part of any pre-registered decision.
 
 | task   |   start | model      | version   |   n |    mse |   rmse |    mae |     mbe |   accuracy |   macro_f1 |   p_vs_no_change |
 |:-------|--------:|:-----------|:----------|----:|-------:|-------:|-------:|--------:|-----------:|-----------:|-----------------:|
