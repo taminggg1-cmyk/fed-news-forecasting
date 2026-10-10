@@ -26,3 +26,8 @@
 ### Post-results exploratory analyses
 
 - Clark-West (2007) test for nested models, linear S vs S+N (`src/fed_news/clark_west.py`, output `results/exploratory/clark_west.csv`), chosen after the results were known because the pre-registered Diebold-Mariano test is undersized for nested comparisons: T1 t = 2.04, p = 0.021 (308 months); T2 t = 3.03, p = 0.001 (212 meetings). Exploratory only; it does not change the H1 verdict.
+
+### Plan 5 (H5) notes
+
+- No deviation after tag `prereg-text`. Before the tag, code review led to keying events by their outcome trading day (weekend and holiday releases join the next trading day) so that no two events share an outcome; the spec and PREREG_TEXT.md were updated before any event-day yield change was computed.
+- The look-ahead comparison changes two things at once: the language model (ModernBERT-base instead of the per-year ChronoBERT vintages) and the label dating (all labels at once). It shows what a typical non-time-consistent pipeline would report, not the separate effect of each choice.

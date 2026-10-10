@@ -128,19 +128,31 @@
 
 - Clark-West (2007) test for nested models, linear S vs S+N (`src/fed_news/clark_west.py`, output `results/exploratory/clark_west.csv`), chosen after the results were known because the pre-registered Diebold-Mariano test is undersized for nested comparisons: T1 t = 2.04, p = 0.021 (308 months); T2 t = 3.03, p = 0.001 (212 meetings). Exploratory only; it does not change the H1 verdict.
 
+### Plan 5 (H5) notes
+
+- No deviation after tag `prereg-text`. Before the tag, code review led to keying events by their outcome trading day (weekend and holiday releases join the next trading day) so that no two events share an outcome; the spec and PREREG_TEXT.md were updated before any event-day yield change was computed.
+- The look-ahead comparison changes two things at once: the language model (ModernBERT-base instead of the per-year ChronoBERT vintages) and the label dating (all labels at once). It shows what a typical non-time-consistent pipeline would report, not the separate effect of each choice.
+
 ## Provenance
 
 - prereg tag commit: 5d0c31c0e319cf995c298c38a3bf8abcf7d0f559
-- HEAD: d76b80dfb4e23174d1ddfe863148546b96721d37
+- HEAD: 8d2c5c197d2b6dbaa131053067d246e8a966dd7a
 - `git diff --stat prereg -- src`:
 
 ```
-src/fed_news/diag_tft.py     | 128 +++++++++++++++++++++++
- src/fed_news/evaluate_h2a.py | 241 +++++++++++++++++++++++++++++++++++++++++++
- src/fed_news/frozen.py       | 167 ++++++++++++++++++++++++++++++
- src/fed_news/neural.py       | 114 ++++++++++++++++++++
- src/fed_news/neural_walk.py  | 178 ++++++++++++++++++++++++++++++++
- src/fed_news/run_neural.py   | 137 ++++++++++++++++++++++++
- src/fed_news/tft.py          | 196 +++++++++++++++++++++++++++++++++++
- 7 files changed, 1161 insertions(+)
+src/fed_news/ablation.py      |  51 +++++++++
+ src/fed_news/clark_west.py    |  49 +++++++++
+ src/fed_news/diag_tft.py      | 128 ++++++++++++++++++++++
+ src/fed_news/evaluate_h2a.py  | 241 ++++++++++++++++++++++++++++++++++++++++++
+ src/fed_news/evaluate_text.py |  49 +++++++++
+ src/fed_news/event_study.py   |  89 ++++++++++++++++
+ src/fed_news/events.py        |  75 +++++++++++++
+ src/fed_news/frozen.py        | 167 +++++++++++++++++++++++++++++
+ src/fed_news/market_bench.py  | 102 ++++++++++++++++++
+ src/fed_news/naive_stance.py  | 100 ++++++++++++++++++
+ src/fed_news/neural.py        | 114 ++++++++++++++++++++
+ src/fed_news/neural_walk.py   | 178 +++++++++++++++++++++++++++++++
+ src/fed_news/run_neural.py    | 137 ++++++++++++++++++++++++
+ src/fed_news/tft.py           | 196 ++++++++++++++++++++++++++++++++++
+ 14 files changed, 1676 insertions(+)
 ```

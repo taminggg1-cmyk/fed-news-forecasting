@@ -151,17 +151,24 @@ The same code and seeds re-run once more, to bound GPU floating-point nondetermi
 ## Provenance
 
 - prereg-h2a tag commit: e931dfc3d5142e506330a35d7c4f005d4f7593af
-- HEAD: d76b80d
+- HEAD: 8d2c5c1
 - `git diff --stat prereg-h2a -- src`:
 
 ```
-src/fed_news/diag_tft.py     | 128 +++++++++++++++++++++++
- src/fed_news/evaluate_h2a.py | 241 +++++++++++++++++++++++++++++++++++++++++++
- src/fed_news/frozen.py       | 167 ++++++++++++++++++++++++++++++
- src/fed_news/neural.py       |   6 +-
- src/fed_news/neural_walk.py  |  19 ++--
- src/fed_news/run_neural.py   |   3 +-
- 6 files changed, 555 insertions(+), 9 deletions(-)
+src/fed_news/ablation.py      |  51 +++++++++
+ src/fed_news/clark_west.py    |  49 +++++++++
+ src/fed_news/diag_tft.py      | 128 ++++++++++++++++++++++
+ src/fed_news/evaluate_h2a.py  | 241 ++++++++++++++++++++++++++++++++++++++++++
+ src/fed_news/evaluate_text.py |  49 +++++++++
+ src/fed_news/event_study.py   |  89 ++++++++++++++++
+ src/fed_news/events.py        |  75 +++++++++++++
+ src/fed_news/frozen.py        | 167 +++++++++++++++++++++++++++++
+ src/fed_news/market_bench.py  | 102 ++++++++++++++++++
+ src/fed_news/naive_stance.py  | 100 ++++++++++++++++++
+ src/fed_news/neural.py        |   6 +-
+ src/fed_news/neural_walk.py   |  19 ++--
+ src/fed_news/run_neural.py    |   3 +-
+ 13 files changed, 1070 insertions(+), 9 deletions(-)
 ```
 
 evaluate_h2a.py was committed (0554690) before the first forecast file was written. Later edits add report sections only; the pre-registered test code (pair_tests, variance_rule, Holm) is unchanged.
