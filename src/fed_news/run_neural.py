@@ -87,7 +87,8 @@ def main(argv=None) -> None:
     ap.add_argument("--task", choices=["T1", "T2", "all"], default="all")
     ap.add_argument("--only", default="")
     ap.add_argument("--seeds", default="0-7")
-    ap.add_argument("--paper-refit-every", type=int, default=1)
+    # Binding value is 3 (PREREG_H2A.md; DEVIATIONS.md, one-hour rule): a plain rerun keeps the committed seeds.
+    ap.add_argument("--paper-refit-every", type=int, default=3)
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args(argv)
     lo_s, _, hi_s = args.seeds.partition("-")

@@ -173,3 +173,12 @@ def test_ensemble_rejects_non_finite_and_empty():
         run_neural.ensemble([preds(D2, [2.0, 2.0]), preds(D2, [2.0, np.nan])])
     with pytest.raises(ValueError):
         run_neural.ensemble([])
+
+
+def test_paper_refit_every_defaults_to_three(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    seen = []
+    real = run_neural.neural_ladder
+    monkeypatch.setattr(run_neural, "neural_ladder", lambda task, n=1: seen.append(n) or real(task, n))
+    run_neural.main(ARGS + ["--seeds", "0"])
+    assert seen == [3]

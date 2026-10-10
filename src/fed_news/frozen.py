@@ -1,9 +1,12 @@
 """Frozen-model analysis (PREREG_H2A.md; the paper's section 4.1 fixed-rule exercise).
 
 Every model is trained once on what was available before 2016-01-01 (or 2020-01-01) and then forecasts
-every later month or meeting without updating. Compared with the same models refitted every month in
-the main analysis, this shows whether rules learned before a date still hold afterwards. Descriptive:
-not part of the H2 Holm family.
+every later month or meeting without updating. Compared with the same models in the main walk-forward
+analysis ('updated'), this shows whether rules learned before a date still hold afterwards. 'Updated'
+keeps each model's pre-registered schedule: linear models refit every month/meeting; the paper's LSTM/GRU
+every 3 months (one-hour rule, DEVIATIONS.md); the TFT and the hybrid's TFT every 12 months / 8 meetings
+(the hybrid's linear anchor at every row); the meeting LSTM every 8 meetings. Descriptive: not part of the
+H2 Holm family.
 """
 import argparse
 import os
@@ -138,7 +141,10 @@ def report() -> pd.DataFrame:
         "# Results: frozen models (train once, never update)", "",
         "Descriptive analysis from PREREG_H2A.md, modelled on the paper's fixed-rule exercise. Each model is "
         "trained once on data before 2016 (or 2020) and forecasts every later month or meeting; 'updated' is "
-        "the same model refitted every month or meeting in the main analysis, over the same period. "
+        "the same model in the main walk-forward analysis with its pre-registered schedule, over the same "
+        "period: linear models refit every month or meeting; the paper's LSTM/GRU every 3 months (one-hour "
+        "rule); the TFT and the hybrid's TFT every 12 months / 8 meetings (the hybrid's linear anchor at every "
+        "row); the meeting LSTM every 8 meetings. "
         "p_vs_no_change is a one-sided DM test against the no-change forecast; it is not part of any "
         "pre-registered decision.", "",
         table.round(4).to_markdown(index=False), "",

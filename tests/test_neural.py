@@ -68,3 +68,21 @@ def test_fit_early_stopping_never_returns_worse_than_start_on_validation():
     neural.fit_early_stopping(model, X, y, lr=1e-2, max_epochs=40, patience=5, val_frac=0.2, device="cpu")
     end = float(np.mean((neural.predict(model, val_x, "cpu") - val_y) ** 2))
     assert end <= start + 1e-9
+
+
+def test_best_epoch_is_zero_when_nothing_trains():
+    rng = np.random.default_rng(2)
+    X = rng.normal(size=(30, 4, 2)).astype(np.float32)
+    y = X[:, -1, 1].astype(np.float32)
+    model = neural.build_model("tft", 2, 8, 0.0, seed=0)
+    out = neural.fit_early_stopping(model, X, y, lr=0.0, max_epochs=10, patience=3, val_frac=0.2, device="cpu")
+    assert out is model and model.best_epoch_ == 0
+
+
+def test_best_epoch_is_a_trained_epoch_on_learnable_signal():
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(60, 4, 2)).astype(np.float32)
+    y = X[:, -1, 1].astype(np.float32)
+    model = neural.build_model("tft", 2, 8, 0.0, seed=0)
+    neural.fit_early_stopping(model, X, y, lr=1e-2, max_epochs=30, patience=5, val_frac=0.2, device="cpu")
+    assert 1 <= model.best_epoch_ <= 30

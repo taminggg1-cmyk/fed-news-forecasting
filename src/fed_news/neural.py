@@ -89,7 +89,8 @@ def fit_early_stopping(model, X, y, lr: float, max_epochs: int, patience: int, v
 
     # The untrained weights count as epoch 0, so the result is never worse than the start.
     best, best_state, wait = val_loss(), copy.deepcopy(model.state_dict()), 0
-    for _ in range(max_epochs):
+    best_epoch = 0
+    for epoch in range(1, max_epochs + 1):
         model.train()
         opt.zero_grad()
         loss = nn.functional.mse_loss(model(xt), yt)
@@ -97,12 +98,13 @@ def fit_early_stopping(model, X, y, lr: float, max_epochs: int, patience: int, v
         opt.step()
         v = val_loss()
         if v < best - 1e-12:
-            best, best_state, wait = v, copy.deepcopy(model.state_dict()), 0
+            best, best_state, wait, best_epoch = v, copy.deepcopy(model.state_dict()), 0, epoch
         else:
             wait += 1
             if wait >= patience:
                 break
     model.load_state_dict(best_state)
+    model.best_epoch_ = best_epoch  # diagnostic only: the kept epoch (0 = untrained weights)
     return model
 
 

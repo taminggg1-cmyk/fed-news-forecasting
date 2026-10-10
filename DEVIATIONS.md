@@ -1,6 +1,6 @@
 ### Deviations from PREREG.md
 
-- None in code: `git diff --stat prereg -- src` is empty; the H1 run used the tagged code.
+- None in the 17 Plan 1 modules: `git diff --stat prereg -- <Plan 1 files>` is empty; Plan 2 added new modules only.
 
 ### Errata
 
@@ -17,6 +17,8 @@
 
 ### Plan 2 (H2a) deviations
 
-- Plan 2: T1/gru-S/seed0 took more than 3,600 s (the timing run was stopped 3,720 s after the process started, so the seed-pass exceeded 3,600 s); T1/lstm-S/seed0 took 3,039 s. Per PREREG_H2A.md all paper LSTM/GRU T1 specs run with refit every 3 months. The refit-every-month pilot forecasts were deleted unused.
+- Plan 2: T1/gru-S/seed0 took more than 3,600 s (the timing run was stopped 3,720 s after the process started, so the seed-pass exceeded 3,600 s); T1/lstm-S/seed0 took 3,039 s. Per PREREG_H2A.md all paper LSTM/GRU T1 specs run with refit every 3 months. The refit-every-month pilot forecasts were deleted unused. LSTM pilot 2026-10-09 17:44:49-18:35:34 (3,038.6 s seed-pass); GRU pilot started 18:35:46 and was stopped by a watchdog at 19:37:46 (3,720 s after start; 3,600 s plus 120 s for imports/data loading, which the runner's timer excludes). GRU at refit every 3 months later took 1,230-1,280 s per seed-pass, about 3,700-3,800 s if scaled to monthly refits.
 - Plan 2: after tag `prereg-h2a`, `neural_walk.run_neural_spec` gained a keyword `anchor_every_row` (default True, the pre-registered behaviour, unchanged). Only the descriptive frozen-model analysis passes False, so a frozen hybrid's linear anchor is fitted once, like every other frozen model.
-- Plan 2: run order changed to TFT and hybrid specs first, then the rest; each spec's forecasts depend only on its own settings and seed, so the order changes no result.
+- Plan 2: run order changed to TFT and hybrid specs first, then the rest; each spec's forecasts depend only on its own settings and seed, so the order changes no result, up to GPU floating-point nondeterminism (see RESULTS_H2A.md exploratory section).
+- Plan 2: run command: `PYTHONPATH=src python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda` (TFT/hybrid specs were run first with `--only`).
+- Plan 2: after the results were known (final-review fixes, exploratory): `neural.fit_early_stopping` records the kept epoch as `best_epoch_` (training, return value and numbers unchanged); `run_neural --paper-refit-every` now defaults to 3; `evaluate_h2a.py` and `frozen.py` report text was extended; `diag_tft.py` is new. No forecast file was changed or regenerated. Exploratory additions are labelled "exploratory, added after results" in RESULTS_H2A.md.
