@@ -76,8 +76,21 @@ def fraser_docs(selection: pd.DataFrame, text_dir=None) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=COLUMNS)
 
 
+_BANK_RE = "|".join(re.escape(b.lower()) for b in BANKS)
+
+
+def _without_vice(desc: str) -> str:
+    """Lower-case description with every 'vice president' phrase (any spacing or hyphen) removed."""
+    return re.sub(r"vice[\s-]+president", " ", desc.lower())
+
+
 def _bank(desc: str) -> str | None:
-    low = desc.lower()
+    """The bank the speaker presides over: the first 'president ... of the Federal Reserve Bank of X' phrase,
+    else the first bank named in the description."""
+    low = _without_vice(desc)
+    m = re.search(rf"\bpresident\b[^.;]*?federal reserve bank of ({_BANK_RE})", low)
+    if m:
+        return next(b for b in BANKS if b.lower() == m.group(1))
     for b in BANKS:
         if f"federal reserve bank of {b.lower()}" in low:
             return b
@@ -91,7 +104,7 @@ def bis_docs(bis_dir=None) -> pd.DataFrame:
         for r in df.itertuples():
             desc, day = str(r.description or ""), pd.to_datetime(r.date, errors="coerce")
             bank, sp = _bank(desc), surname(r.author)
-            if bank is None or pd.isna(day) or not re.search(r"(?<!vice )president", desc.lower()):
+            if bank is None or pd.isna(day) or not re.search(r"\bpresident\b", _without_vice(desc)):
                 continue
             if not (str(day.date()) >= START and str(day.date()) <= END) or not in_tenure(sp, day.year, bank):
                 continue

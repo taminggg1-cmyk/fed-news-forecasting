@@ -48,3 +48,13 @@ def test_build_regional_dedup_and_corpus_overlap():
                            "release": [pd.Timestamp("2008-03-03")], "text": ["x"]})
     out = rc.build_regional(fr, bis, corpus)
     assert list(out["doc_id"]) == ["f1", "b2"]
+
+
+def test_bank_and_vice_president_variants():
+    assert rc._bank("Remarks by Mr Robert S Kaplan, President of the Federal Reserve Bank of Dallas, at the "
+                    "Federal Reserve Bank of Atlanta conference") == "Dallas"
+    assert rc._bank("Speech at the Federal Reserve Bank of Atlanta by Mr Robert S Kaplan, President of the "
+                    "Federal Reserve Bank of Dallas") == "Dallas"
+    assert not __import__("re").search(r"\bpresident\b", rc._without_vice(
+        "Mr Ernest T Patrikis, First Vice-President of the Federal Reserve Bank of New York"))
+    assert not __import__("re").search(r"\bpresident\b", rc._without_vice("Senior Vice  President, FRB Chicago"))
