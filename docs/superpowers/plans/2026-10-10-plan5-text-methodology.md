@@ -905,7 +905,8 @@ The Fed stance surprise predicts the same-day change in the 2-year Treasury yiel
 
 ## Exploratory analyses (not pre-registered tests)
 Look-ahead comparison (answerdotai/ModernBERT-base on all labels), T-bill market benchmark, feature ablation,
-as in the spec sections 3-5.
+as in the spec sections 3-5. The market benchmark is descriptive: both bills are shown with no selection,
+the 3-month bill (full sample) is the headline row, and its DM p-values are not tests.
 ```
 
 - [ ] **Step 2: Commit and tag**
