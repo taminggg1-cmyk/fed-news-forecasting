@@ -36,3 +36,19 @@ def test_report(tmp_path, monkeypatch):
     ev2.main()
     text = (tmp_path / "RESULTS_STUDY2.md").read_text(encoding="utf-8")
     assert "**H6 verdict: supported.**" in text and "not run" in text and "conservative" in text
+
+
+def test_secondary_failure_keeps_h6(monkeypatch):
+    def fake_build(ds, y2):
+        return ds
+
+    def fake_run(events, label="", **kw):
+        if "regional" in label:
+            raise ValueError("only 10 training events before 2001-01-02")
+        return {"pipeline": label, "cw_p": 0.01, "void_cw_p": 0.5, "verdict": "supported"}, pd.DataFrame({"y": [0]})
+
+    monkeypatch.setattr(study2, "build_events", fake_build)
+    monkeypatch.setattr(study2, "run_event_study", fake_run)
+    rows, wf = study2.event_rows(pd.DataFrame({"source": ["corpus", "fraser"]}), pd.Series(dtype=float))
+    assert rows.loc[0, "verdict"] == "supported" and len(wf) == 1
+    assert rows.loc[1, "error"].startswith("failed:") and "error" not in rows.columns[rows.iloc[2].notna()].tolist()

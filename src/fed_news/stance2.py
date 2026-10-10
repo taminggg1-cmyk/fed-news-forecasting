@@ -24,15 +24,24 @@ def all_docs() -> pd.DataFrame:
     return pd.concat([corpus, regional], ignore_index=True)
 
 
-def _fingerprint(train: pd.DataFrame, doc_ids) -> str:
+def _fingerprint(train: pd.DataFrame, ydocs: pd.DataFrame, vintage: int) -> str:
+    """Changes when the training labels, the documents (id, release, text) or the classifier settings change."""
     h = hashlib.sha1()
-    h.update(str(len(train)).encode())
-    h.update("|".join(sorted(map(str, doc_ids))).encode())
+    for s, lab in sorted(zip(train["sentence"].astype(str), train["label"].astype(int))):
+        h.update(f"{s}\t{lab}\n".encode())
+    for d, r, t in sorted(zip(ydocs["doc_id"].astype(str), pd.to_datetime(ydocs["release"]).astype(str),
+                              ydocs["text"].astype(str))):
+        h.update(f"{d}\t{r}\t{hashlib.sha1(t.encode()).hexdigest()}\n".encode())
+    settings = (vintage, tuple(config.STANCE_SEEDS), config.STANCE_LR, config.STANCE_EPOCHS, config.STANCE_BATCH,
+                config.STANCE_MAXLEN, stance.model_name(vintage))
+    h.update(repr(settings).encode())
     return h.hexdigest()
 
 
 def run(docs: pd.DataFrame | None = None, labels: pd.DataFrame | None = None, parts_dir=None) -> pd.DataFrame:
     docs = all_docs() if docs is None else docs.copy()
+    if not docs["doc_id"].is_unique:
+        raise ValueError("doc_id values must be unique across the corpus and the regional speeches")
     labels = load_labels() if labels is None else labels
     docs["cyear"] = pd.to_datetime(docs["release"]).dt.year.map(stance.classifier_year)
     parts = parts_dir or PARTS
@@ -41,10 +50,11 @@ def run(docs: pd.DataFrame | None = None, labels: pd.DataFrame | None = None, pa
     for cyear in sorted(docs["cyear"].unique()):
         ydocs = docs[docs["cyear"] == cyear]
         train = stance.eligible(labels, cyear)
-        fp = _fingerprint(train, ydocs["doc_id"])
+        fp = _fingerprint(train, ydocs, stance.vintage_year(cyear))
         part = parts / f"{cyear}.pkl"
-        if part.exists() and pd.read_pickle(part)[1] == fp:
-            sent = pd.read_pickle(part)[0]
+        cached = pd.read_pickle(part) if part.exists() else None
+        if cached is not None and cached[1] == fp:
+            sent = cached[0]
         else:
             sent = stance._sentence_table(ydocs)
             probs = np.mean([stance.train_and_score(train, list(sent["sentence"]), stance.vintage_year(cyear), seed)

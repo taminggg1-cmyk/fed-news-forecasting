@@ -22,11 +22,14 @@ def event_rows(ds: pd.DataFrame, y2: pd.Series) -> tuple[pd.DataFrame, pd.DataFr
             ("secondary: Plan 5 documents, new classifier", "secondary", ds[ds["source"] == "corpus"])]
     rows, h6_wf = [], None
     for label, role, sub in sets:
-        summary, wf = run_event_study(build_events(sub, y2), label=label)
-        if role != "confirmatory":
-            summary.pop("verdict", None)
+        if role == "confirmatory":
+            summary, h6_wf = run_event_study(build_events(sub, y2), label=label)
         else:
-            h6_wf = wf
+            try:  # a failing secondary set never costs the confirmatory H6 result
+                summary, _ = run_event_study(build_events(sub, y2), label=label)
+                summary.pop("verdict", None)
+            except (ValueError, KeyError) as err:
+                summary = {"error": f"failed: {err}"}
         rows.append({"pipeline": label, "role": role, **{k: v for k, v in summary.items() if k != "pipeline"}})
     return pd.DataFrame(rows), h6_wf
 
@@ -51,9 +54,9 @@ def main() -> None:
     ds = pd.read_pickle(DS_PATH)
     y2 = pd.read_pickle(config.DATA / "market_daily.pkl")["y2"]
     rows, wf = event_rows(ds, y2)
-    rows[rows["role"] == "confirmatory"].to_csv(OUT / "h6.csv", index=False)
-    rows[rows["role"] != "confirmatory"].to_csv(OUT / "secondary_events.csv", index=False)
+    rows[rows["role"] == "confirmatory"].dropna(axis=1, how="all").to_csv(OUT / "h6.csv", index=False)
     wf.to_csv(OUT / "h6_forecasts.csv")
+    rows[rows["role"] != "confirmatory"].dropna(axis=1, how="all").to_csv(OUT / "secondary_events.csv", index=False)
     forecasting(ds).to_csv(OUT / "forecasting.csv", index=False)
     print(rows.T.to_string())
 

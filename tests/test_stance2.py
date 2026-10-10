@@ -37,3 +37,29 @@ def test_run_uses_all_eligible_labels_and_resumes(tmp_path, monkeypatch):
     calls = len(seen)
     stance2.run(docs(), lab, parts_dir=tmp_path / "parts")
     assert len(seen) == calls                                              # resumed from parts, no retraining
+
+
+def test_fingerprint_changes_with_label_content_and_rejects_duplicate_ids(tmp_path, monkeypatch):
+    calls = []
+
+    def fake(train, texts, vintage, seed):
+        calls.append(1)
+        return np.full((len(texts), 3), 1 / 3, dtype=np.float32)
+
+    monkeypatch.setattr(stance, "train_and_score", fake)
+    monkeypatch.setattr(stance2, "OUT_PATH", tmp_path / "ds2.pkl")
+    lab = labels()
+    stance2.run(docs(), lab, parts_dir=tmp_path / "parts")
+    first = len(calls)
+    relabelled = lab.copy()
+    relabelled.loc[0, "label"] = (relabelled.loc[0, "label"] + 1) % 3      # same count, different content
+    stance2.run(docs(), relabelled, parts_dir=tmp_path / "parts")
+    assert len(calls) > first                                              # stale part not reused
+    dup = docs()
+    dup.loc[2, "doc_id"] = "a"
+    try:
+        stance2.run(dup, lab, parts_dir=tmp_path / "parts2")
+    except ValueError as err:
+        assert "unique" in str(err)
+    else:
+        raise AssertionError("duplicate doc_id must raise")

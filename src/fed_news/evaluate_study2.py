@@ -20,7 +20,7 @@ def _sha(path) -> str:
 
 def _table(name: str) -> str:
     path = config.RESULTS / "study2" / name
-    return pd.read_csv(path).round(4).to_markdown(index=False) if path.exists() else "not run"
+    return pd.read_csv(path).round(6).to_markdown(index=False) if path.exists() else "not run"
 
 
 def main() -> None:
