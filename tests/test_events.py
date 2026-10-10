@@ -9,46 +9,55 @@ def docs(rows):
         release=lambda d: pd.to_datetime(d["release"]))
 
 
-def test_surprise_uses_30_day_window_before_the_day():
-    d = ev._docs(docs([("a", "speech", "2005-01-01", 0.9, 5),      # 40 days before: outside window
-                       ("b", "speech", "2005-01-20", 0.2, 5),
-                       ("c", "minutes", "2005-02-01", 0.4, 5),
-                       ("d", "statement", "2005-02-10", 0.1, 5),   # event day
-                       ("e", "speech", "2005-02-10", 0.3, 5)]))    # same day: excluded from the baseline
-    assert np.isclose(ev.surprise_at(d, pd.Timestamp("2005-02-10")), 0.2 - 0.3)
+def yields(pairs):
+    return pd.Series([v for _, v in pairs], index=pd.to_datetime([d for d, _ in pairs]))
 
 
-def test_surprise_falls_back_to_latest_earlier_document():
-    d = ev._docs(docs([("a", "speech", "2005-01-01", 0.5, 5), ("b", "speech", "2005-03-15", 0.1, 5)]))
-    assert np.isclose(ev.surprise_at(d, pd.Timestamp("2005-03-15")), 0.1 - 0.5)
+Y = yields([("2005-01-03", 1.00), ("2005-01-04", 1.10), ("2005-01-05", 1.30), ("2005-01-06", 1.20),
+            ("2005-01-07", 1.25), ("2005-01-10", 1.40), ("2005-02-07", 1.50), ("2005-02-08", 1.45),
+            ("2005-02-09", 1.60), ("2005-02-10", 1.70)])
 
 
-def test_surprise_ignores_later_documents():
-    rows = [("a", "speech", "2005-01-10", 0.5, 5), ("b", "speech", "2005-01-20", 0.1, 5)]
-    base = ev.surprise_at(ev._docs(docs(rows)), pd.Timestamp("2005-01-20"))
-    later = ev.surprise_at(ev._docs(docs(rows + [("c", "speech", "2005-01-25", 9.0, 5)])), pd.Timestamp("2005-01-20"))
+def test_weekend_release_joins_next_trading_day():
+    d = docs([("a", "speech", "2005-01-04", 0.5, 5), ("s", "speech", "2005-01-08", 0.1, 5),   # Saturday
+              ("m", "minutes", "2005-01-10", 0.3, 5)])                                       # Monday
+    out = ev.build_events(d, Y)
+    row = out.loc[pd.Timestamp("2005-01-10")]
+    assert row["n_docs"] == 2 and np.isclose(row["stance"], 0.2) and row["category"] == "minutes"
+    assert np.isclose(row["dy2"], 15.0) and np.isclose(row["dy2_before"], 5.0)               # Mon-Fri, Fri-Thu
+    assert pd.Timestamp("2005-01-08") not in out.index
+
+
+def test_surprise_window_excludes_event_documents_and_old_ones():
+    d = docs([("o", "speech", "2005-01-04", 0.9, 5),                                          # > 30 days before
+              ("b", "speech", "2005-02-07", 0.2, 5), ("c", "minutes", "2005-02-08", 0.4, 5),
+              ("e1", "statement", "2005-02-10", 0.1, 5), ("e2", "speech", "2005-02-10", 0.3, 5)])
+    out = ev.build_events(d, Y)
+    assert np.isclose(out.loc[pd.Timestamp("2005-02-10"), "surprise"], 0.2 - 0.3)
+
+
+def test_fallback_is_mean_of_latest_earlier_event():
+    d = docs([("a", "speech", "2005-01-04", 0.9, 5), ("x", "speech", "2005-01-05", 0.4, 5),
+              ("y", "minutes", "2005-01-05", 0.6, 5), ("z", "speech", "2005-02-09", 0.1, 5)])
+    out = ev.build_events(d, Y)
+    assert np.isclose(out.loc[pd.Timestamp("2005-02-09"), "surprise"], 0.1 - 0.5)            # mean of x and y
+
+
+def test_later_documents_do_not_change_earlier_surprise():
+    rows = [("a", "speech", "2005-01-04", 0.5, 5), ("b", "speech", "2005-01-06", 0.1, 5)]
+    base = ev.build_events(docs(rows), Y).loc[pd.Timestamp("2005-01-06"), "surprise"]
+    later = ev.build_events(docs(rows + [("c", "speech", "2005-01-07", 9.0, 5)]), Y).loc[pd.Timestamp("2005-01-06"), "surprise"]
     assert base == later
 
 
-def test_yield_change_weekend_and_day_before():
-    y = pd.Series([1.00, 1.05, 1.20], index=pd.to_datetime(["2005-01-06", "2005-01-07", "2005-01-10"]))
-    assert np.isclose(ev.yield_change(y, pd.Timestamp("2005-01-08")), 15.0)   # Saturday: Monday - Friday
-    assert np.isclose(ev.yield_change(y, pd.Timestamp("2005-01-07")), 5.0)
-    assert np.isclose(ev.yield_change_before(y, pd.Timestamp("2005-01-10")), 5.0)
+def test_first_event_and_non_event_types_dropped():
+    d = docs([("a", "speech", "2005-01-05", 0.5, 5), ("z", "beige", "2005-01-06", 0.9, 5),
+              ("b", "speech", "2005-01-06", 0.1, 5)])
+    out = ev.build_events(d, Y)
+    assert list(out.index) == [pd.Timestamp("2005-01-06")] and out.iloc[0]["n_docs"] == 1
 
 
 def test_day_category_priority():
     assert ev.day_category(["speech", "minutes"]) == "minutes"
     assert ev.day_category(["speech", "presconf"]) == "statement"
     assert ev.day_category(["speech"]) == "speech"
-
-
-def test_build_events_one_row_per_day_and_drops_nan():
-    d = docs([("a", "speech", "2005-01-03", 0.5, 5), ("b", "speech", "2005-01-04", 0.1, 5),
-              ("c", "minutes", "2005-01-04", 0.3, 5), ("z", "beige", "2005-01-04", 0.9, 5)])
-    y = pd.Series([1.0, 1.1, 1.3, 1.2], index=pd.to_datetime(["2004-12-31", "2005-01-03", "2005-01-04", "2005-01-05"]))
-    out = ev.build_events(d, y)
-    assert list(out.index) == [pd.Timestamp("2005-01-04")]              # first day has no surprise
-    row = out.iloc[0]
-    assert np.isclose(row["stance"], 0.2) and row["n_docs"] == 2 and row["category"] == "minutes"
-    assert np.isclose(row["dy2"], 20.0) and np.isclose(row["dy2_before"], 10.0)

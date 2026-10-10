@@ -36,6 +36,8 @@ def walk_forward(events: pd.DataFrame, outcome: str, regressor: str = "surprise"
 
 
 def decide(primary_p: float, void_p: float, alpha: float = ALPHA) -> str:
+    if np.isnan(primary_p) or np.isnan(void_p):
+        raise ValueError("NaN p-value in the H5 decision")
     if void_p < alpha:
         return "void"
     return "supported" if primary_p < alpha else "not supported"

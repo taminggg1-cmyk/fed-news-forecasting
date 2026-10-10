@@ -46,3 +46,12 @@ def test_walk_forward_refuses_tiny_training_set():
         assert "training events" in str(err)
     else:
         raise AssertionError("must refuse fewer than MIN_TRAIN training events")
+
+
+def test_decide_rejects_nan():
+    try:
+        es.decide(float("nan"), 0.5)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("NaN p must raise")

@@ -1,9 +1,11 @@
 """Event days for the Plan 5 event study (spec 2026-10-10-text-methodology-design.md, section 2).
 
-An event day is a calendar day with at least one statement, set of minutes, press-conference transcript or
-speech. Day stance = mean document stance that day. Surprise = day stance minus the mean stance of documents
-released in the 30 calendar days before the day (the day itself excluded), or minus the latest earlier
-document's stance when that window is empty. Yield changes are basis points of the 2-year yield.
+Each document is mapped to its outcome trading day: the first date with a 2-year yield on or after its
+release day. All documents with the same outcome day form one event (so a weekend release joins the next
+trading day's releases and no two events share an outcome). Event stance = mean document stance. Surprise =
+event stance minus the document-mean stance of earlier events' documents released within the 30 calendar days
+before the outcome day; if there are none, minus the mean stance of the latest earlier event's documents.
+dy2 = yield change on the outcome day (basis points); dy2_before = the change on the previous trading day.
 """
 import numpy as np
 import pandas as pd
@@ -28,41 +30,41 @@ def day_category(types) -> str:
     return "minutes" if "minutes" in types else "speech"
 
 
-def surprise_at(docs: pd.DataFrame, day: pd.Timestamp) -> float:
-    today = docs.loc[docs["day"] == day, "stance"]
-    prior = docs[docs["day"] < day]
+def assign_keys(docs: pd.DataFrame, trading: pd.DatetimeIndex) -> pd.DataFrame:
+    """Add `key` (outcome trading day) and `k` (its position); drop documents with no outcome day or no
+    previous trading day."""
+    pos = trading.searchsorted(docs["day"].to_numpy(), side="left")
+    keep = (pos < len(trading)) & (pos >= 1)
+    out = docs[keep].copy()
+    out["k"] = pos[keep]
+    out["key"] = trading[pos[keep]]
+    return out
+
+
+def surprise_for(docs: pd.DataFrame, key: pd.Timestamp) -> float:
+    today = docs.loc[docs["key"] == key, "stance"]
+    prior = docs[docs["key"] < key]
     if today.empty or prior.empty:
         return np.nan
-    window = prior[prior["day"] >= day - pd.Timedelta(days=SURPRISE_DAYS)]
-    base = window["stance"].mean() if len(window) else prior["stance"].iloc[-1]
+    window = prior[prior["day"] >= key - pd.Timedelta(days=SURPRISE_DAYS)]
+    base = window["stance"].mean() if len(window) else prior.loc[prior["key"] == prior["key"].max(), "stance"].mean()
     return float(today.mean() - base)
 
 
-def yield_change(y: pd.Series, day: pd.Timestamp) -> float:
-    """Basis points: first yield on or after `day` minus the last yield strictly before `day`."""
-    y = y.dropna()
-    after, before = y[y.index >= day], y[y.index < day]
-    if after.empty or before.empty:
-        return np.nan
-    return float(100 * (after.iloc[0] - before.iloc[-1]))
-
-
-def yield_change_before(y: pd.Series, day: pd.Timestamp) -> float:
-    """Basis points: the change on the last business day before `day` (the void-rule outcome)."""
-    before = y.dropna()
-    before = before[before.index < day]
-    if len(before) < 2:
-        return np.nan
-    return float(100 * (before.iloc[-1] - before.iloc[-2]))
-
-
 def build_events(doc_stance: pd.DataFrame, y2: pd.Series, end: str = TEST_END) -> pd.DataFrame:
+    y = y2.dropna().sort_index()
+    trading = y.index
     docs = _docs(doc_stance)
-    docs = docs[docs["day"] <= pd.Timestamp(end)]
-    rows = [{"day": day, "stance": float(g["stance"].mean()), "surprise": surprise_at(docs, day),
-             "dy2": yield_change(y2, day), "dy2_before": yield_change_before(y2, day),
-             "n_docs": len(g), "category": day_category(g["type"])}
-            for day, g in docs.groupby("day")]
+    docs = assign_keys(docs[docs["day"] <= pd.Timestamp(end)], trading)
+    vals = y.to_numpy(float)
+    rows = []
+    for key, g in docs.groupby("key"):
+        k = int(g["k"].iloc[0])
+        rows.append({"day": key, "stance": float(g["stance"].mean()), "surprise": surprise_for(docs, key),
+                     "dy2": float(100 * (vals[k] - vals[k - 1])),
+                     "dy2_before": float(100 * (vals[k - 1] - vals[k - 2])) if k >= 2 else np.nan,
+                     "n_docs": len(g), "category": day_category(g["type"]),
+                     "first_release": g["day"].min()})
     out = pd.DataFrame(rows).set_index("day")
     return out.dropna(subset=["surprise", "dy2", "dy2_before"])
 
