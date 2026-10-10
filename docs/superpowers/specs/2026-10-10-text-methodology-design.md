@@ -24,21 +24,22 @@ placebo shows the gain comes from content, and the exploratory Clark-West test i
 **Question.** Does the stance of Fed communication predict the move in the 2-year Treasury yield on the
 day it is released, out of sample?
 
-**Events.** Every release day from 2001-01-01 to 2026-09-30 with at least one statement, set of minutes,
-press-conference transcript or speech in the corpus (1,800 days, 2,248 documents). Documents from
-1994-2000 are used only for training and for the surprise baseline.
+**Events.** Each statement, set of minutes, press-conference transcript or speech is mapped to its outcome
+trading day: the first date with a 2-year yield on or after its release day. All documents with the same
+outcome day form one event, so a weekend or holiday release joins the next trading day's releases and no two
+events share an outcome. Test events: outcome days from 2001-01-01 to 2026-09-30 (about 1,800). Documents
+from 1994-2000 are used only for training and for the surprise baseline.
 
 **Stance.** Document stance from `D:/fed_news/doc_stance.pkl` (each document scored by the classifier of
-its year, as in Plan 1). Day stance = mean stance of that day's documents.
+its year, as in Plan 1). Event stance = mean stance of the event's documents.
 
-**Regressor: stance surprise.** Day stance minus the mean stance of all corpus documents released in the
-30 calendar days before the event day (the event day excluded); if there are none, minus the stance of
-the most recent earlier document.
+**Regressor: stance surprise.** Event stance minus the document-mean stance of earlier events' documents
+released within the 30 calendar days before the outcome day; if there are none, minus the mean stance of
+the documents of the latest earlier event.
 
 **Outcome.** Change in the 2-year constant-maturity Treasury yield (`market_daily.pkl` column `y2`, FRED
-`DGS2`), in basis points: yield on the event day minus yield on the previous business day. If the event
-day has no yield (weekend or holiday), the next business day's yield minus the last yield before the event
-day.
+`DGS2`), in basis points: yield on the outcome day minus yield on the previous trading day. The void-rule
+outcome is the change on the previous trading day.
 
 **Primary test.** Walk-forward out-of-sample forecasts. For each test event day d (2001-2026), fit by OLS
 on all earlier event days (from 1994): small model `dy2 = a`, large model `dy2 = a + b * surprise`.

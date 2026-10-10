@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Never edit Plan 1 or Plan 2 files: `src/fed_news/{config,http,market,alfred,fomc_calendar,meetings,corpus,indices,panel,labels,stance,text_features,models,stats_tests,walkforward,run_models,evaluate,tft,neural,neural_walk,run_neural,evaluate_h2a,frozen,diag_tft,clark_west}.py` and their tests. Import only.
-- Event study (binding, pre-registered in `PREREG_TEXT.md`): event types statement, minutes, presconf, speech; test days 2001-01-01 to 2026-09-30; surprise window 30 calendar days before the event day, event day excluded, fallback = latest earlier document; outcome = 2-year yield change in basis points (`market_daily.pkl` column `y2`), event day minus previous business day, non-business event day = next business day minus last earlier day; walk-forward OLS on all strictly earlier event days (from 1994), small model `dy2 = a`, large `dy2 = a + b * surprise`; one-sided Clark-West, alpha 0.05; void if the same test on `dy2_before` gives p < 0.05.
+- Event study (binding, pre-registered in `PREREG_TEXT.md`): event types statement, minutes, presconf, speech; each document keyed to its outcome trading day (first date with a y2 value on or after release; same key = one event); test outcome days 2001-01-01 to 2026-09-30; surprise = event stance minus the document-mean stance of earlier events' documents released within 30 calendar days before the outcome day, fallback = mean stance of the latest earlier event's documents; outcome = 2-year yield change in basis points (`market_daily.pkl` column `y2`) on the outcome day vs the previous trading day; walk-forward OLS on all strictly earlier event days (from 1994), small model `dy2 = a`, large `dy2 = a + b * surprise`; one-sided Clark-West, alpha 0.05; void if the same test on `dy2_before` gives p < 0.05.
 - No code may compute event-day yield changes against stance on real data before tag `prereg-text` exists (tests use synthetic data only).
 - Look-ahead comparison: `answerdotai/ModernBERT-base`, all labels, `config.STANCE_*` settings, seeds `config.STANCE_SEEDS`, through the unmodified `stance.train_and_score`.
 - Market benchmark: bill value = `market.asof(bill, cutoff)` (last value strictly before the row's cutoff); spread = mean of `y_level - bill` over the row's `walkforward.train_mask` rows that have a bill value; at least 12 such rows, else no forecast. Bills: `bill3m` (= `market_daily.pkl` `tbill_3m`, FRED DTB3) and `bill4w` (FRED DTB4WK).
@@ -887,13 +887,16 @@ before this tag.
 ## H5
 The Fed stance surprise predicts the same-day change in the 2-year Treasury yield out of sample.
 
-- Events: calendar days 2001-01-01 to 2026-09-30 with at least one statement, minutes, press-conference
-  transcript or speech (document stance from D:/fed_news/doc_stance.pkl, the Plan 1 time-consistent
-  classifiers). Day stance = mean document stance.
-- Surprise: day stance minus the mean stance of documents released in the 30 calendar days before the day
-  (day excluded); if none, minus the latest earlier document's stance.
-- Outcome: 2-year constant-maturity yield (FRED DGS2, market_daily.pkl y2), basis points, event day minus
-  previous business day; non-business event day: next business day minus last earlier day.
+- Events: each statement, minutes, press-conference transcript or speech (document stance from
+  D:/fed_news/doc_stance.pkl, the Plan 1 time-consistent classifiers) is keyed to its outcome trading day,
+  the first date with a 2-year yield on or after its release day; documents with the same key form one
+  event (weekend and holiday releases join the next trading day). Test events: outcome days 2001-01-01 to
+  2026-09-30. Event stance = mean document stance.
+- Surprise: event stance minus the document-mean stance of earlier events' documents released within the
+  30 calendar days before the outcome day; if none, minus the mean stance of the latest earlier event's
+  documents.
+- Outcome: 2-year constant-maturity yield (FRED DGS2, market_daily.pkl y2), basis points, outcome day minus
+  previous trading day. Void-rule outcome: the change on the previous trading day.
 - Test: walk-forward OLS on all strictly earlier event days (from 1994); small model dy2 = a; large model
   dy2 = a + b * surprise; one-sided Clark-West; supported if p < 0.05.
 - Void: the same test with the day-before change as outcome; if p < 0.05, H5 is void.
