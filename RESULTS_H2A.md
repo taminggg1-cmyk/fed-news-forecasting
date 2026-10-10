@@ -96,10 +96,10 @@ One-sided DM p-values on the seed-mean ensembles; the anchor is the Plan 1 forec
 
 | task   | info   |   hybrid rmse |   own anchor rmse |   rw rmse |   p anchor beats hybrid |   p rw beats hybrid |
 |:-------|:-------|--------------:|------------------:|----------:|------------------------:|--------------------:|
-| T1     | S      |        0.2034 |            0.1798 |    0.1813 |                  0.0000 |              0.0343 |
-| T1     | S+N    |        0.1812 |            0.1664 |    0.1813 |                  0.0000 |              0.5039 |
-| T2     | S      |        0.2417 |            0.2052 |    0.2411 |                  0.0000 |              0.4836 |
-| T2     | S+N    |        0.2252 |            0.1994 |    0.2411 |                  0.0000 |              0.9104 |
+| T1     | S      |         0.203 |             0.18  |     0.181 |                1.2e-08  |              0.0343 |
+| T1     | S+N    |         0.181 |             0.166 |     0.181 |                3.99e-05 |              0.504  |
+| T2     | S      |         0.242 |             0.205 |     0.241 |                9.11e-06 |              0.484  |
+| T2     | S+N    |         0.225 |             0.199 |     0.241 |                5.48e-07 |              0.91   |
 
 ### MSE decomposition of the hybrid S vs S+N gap (exploratory, added after results)
 
@@ -110,38 +110,58 @@ One-sided DM p-values on the seed-mean ensembles; the anchor is the Plan 1 forec
 
 ### Best epoch kept by the TFT early stopping (exploratory, added after results)
 
-Epoch 0 means the untrained weights were kept. All 8 seeds, every refit.
+Epoch 0 means the untrained weights were kept. Every refit of every seed listed in the seeds column.
 
-best-epoch diagnostic not run
+| task   | spec       |   seeds |   refits |   share best epoch 0 |   median best epoch |
+|:-------|:-----------|--------:|---------:|---------------------:|--------------------:|
+| T1     | hybrid-S   |       8 |      208 |                0.423 |               1.000 |
+| T1     | hybrid-S+N |       8 |      208 |                0.452 |               1.000 |
+| T1     | tft-S      |       8 |      208 |                0.207 |               6.500 |
+| T1     | tft-S+N    |       8 |      208 |                0.245 |               6.000 |
+| T2     | hybrid-S   |       8 |      216 |                0.315 |               3.000 |
+| T2     | hybrid-S+N |       8 |      216 |                0.329 |               3.500 |
+| T2     | tft-S      |       8 |      216 |                0.222 |               8.000 |
+| T2     | tft-S+N    |       8 |      216 |                0.218 |               8.000 |
 
 ### GPU re-run of the TFT and hybrid specs (exploratory, added after results)
 
-re-run not done
+The same code and seeds re-run once more, to bound GPU floating-point nondeterminism. The committed forecasts in results/h2a/ are unchanged.
+
+| task   | spec       |   committed_rmse |   rerun_rmse |   max_abs_forecast_diff |   committed_dm_p |   rerun_dm_p |   committed_variance_rule |   rerun_variance_rule |
+|:-------|:-----------|-----------------:|-------------:|------------------------:|-----------------:|-------------:|--------------------------:|----------------------:|
+| T1     | tft-S      |           0.1927 |       0.1927 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T1     | hybrid-S   |           0.2034 |       0.2034 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T1     | tft-S+N    |           0.1957 |       0.1957 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T1     | hybrid-S+N |           0.1812 |       0.1812 |                  0.0000 |           0.0084 |       0.0084 |                    1.0000 |                1.0000 |
+| T2     | tft-S      |           0.2480 |       0.2480 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T2     | hybrid-S   |           0.2417 |       0.2417 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T2     | tft-S+N    |           0.2486 |       0.2486 |                  0.0000 |         nan      |     nan      |                  nan      |              nan      |
+| T2     | hybrid-S+N |           0.2252 |       0.2252 |                  0.0000 |           0.0115 |       0.0115 |                    0.0000 |                0.0000 |
 
 ## Deviations
 
 ### Plan 2 (H2a) deviations
 
-- Plan 2: T1/gru-S/seed0 took more than 3,600 s (the timing run was stopped 3,720 s after the process started, so the seed-pass exceeded 3,600 s); T1/lstm-S/seed0 took 3,039 s. Per PREREG_H2A.md all paper LSTM/GRU T1 specs run with refit every 3 months. The refit-every-month pilot forecasts were deleted unused. LSTM pilot 2026-10-09 17:44:49-18:35:34 (3,038.6 s seed-pass); GRU pilot started 18:35:46 and was stopped by a watchdog at 19:37:46 (3,720 s after start; 3,600 s plus 120 s for imports/data loading, which the runner's timer excludes). GRU at refit every 3 months later took 1,230-1,280 s per seed-pass, about 3,700-3,800 s if scaled to monthly refits.
+- Plan 2: T1/gru-S/seed0 took more than 3,600 s (the timing run was stopped 3,720 s after the process started, so the seed-pass exceeded 3,600 s); T1/lstm-S/seed0 took 3,039 s. Per PREREG_H2A.md all paper LSTM/GRU T1 specs run with refit every 3 months. The refit-every-month pilot forecasts were deleted unused. LSTM pilot 2026-10-09 17:44:49-18:35:34 (3,038.6 s seed-pass); GRU pilot started 18:35:46 and was stopped by a watchdog at 19:37:46 (3,720 s after start; 3,600 s plus 120 s for imports/data loading, which the runner's timer excludes). GRU at refit every 3 months later took 1,222-1,280 s per seed-pass (gru-S, the piloted spec: 1,262-1,280 s), about 3,790-3,840 s for gru-S if scaled to monthly refits.
 - Plan 2: after tag `prereg-h2a`, `neural_walk.run_neural_spec` gained a keyword `anchor_every_row` (default True, the pre-registered behaviour, unchanged). Only the descriptive frozen-model analysis passes False, so a frozen hybrid's linear anchor is fitted once, like every other frozen model.
 - Plan 2: run order changed to TFT and hybrid specs first, then the rest; each spec's forecasts depend only on its own settings and seed, so the order changes no result, up to GPU floating-point nondeterminism (see RESULTS_H2A.md exploratory section).
 - Plan 2: run command: `PYTHONPATH=src python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda` (TFT/hybrid specs were run first with `--only`).
-- Plan 2: after the results were known (final-review fixes, exploratory): `neural.fit_early_stopping` records the kept epoch as `best_epoch_` (training, return value and numbers unchanged); `run_neural --paper-refit-every` now defaults to 3; `evaluate_h2a.py` and `frozen.py` report text was extended; `diag_tft.py` is new. No forecast file was changed or regenerated. Exploratory additions are labelled "exploratory, added after results" in RESULTS_H2A.md.
+- Plan 2: after the results were known (final-review fixes, exploratory): `neural.fit_early_stopping` records the kept epoch as `best_epoch_` (training, return value and numbers unchanged); `run_neural --paper-refit-every` now defaults to 3; `evaluate_h2a.py` and `frozen.py` report text was extended and results/h2a/ensemble_metrics.csv gained six context rows (random walk and Plan 1 linear); `diag_tft.py` is new. No forecast file was changed or regenerated. Exploratory additions are labelled "exploratory, added after results" in RESULTS_H2A.md.
 
 ## Provenance
 
 - prereg-h2a tag commit: e931dfc3d5142e506330a35d7c4f005d4f7593af
-- HEAD: 74c20cc
+- HEAD: 6a24e0a
 - `git diff --stat prereg-h2a -- src`:
 
 ```
 src/fed_news/diag_tft.py     | 128 +++++++++++++++++++++++
- src/fed_news/evaluate_h2a.py | 239 +++++++++++++++++++++++++++++++++++++++++++
+ src/fed_news/evaluate_h2a.py | 241 +++++++++++++++++++++++++++++++++++++++++++
  src/fed_news/frozen.py       | 167 ++++++++++++++++++++++++++++++
  src/fed_news/neural.py       |   6 +-
  src/fed_news/neural_walk.py  |  19 ++--
  src/fed_news/run_neural.py   |   3 +-
- 6 files changed, 553 insertions(+), 9 deletions(-)
+ 6 files changed, 555 insertions(+), 9 deletions(-)
 ```
 
-evaluate_h2a.py was committed (0554690) before the first forecast file was written.
+evaluate_h2a.py was committed (0554690) before the first forecast file was written. Later edits add report sections only; the pre-registered test code (pair_tests, variance_rule, Holm) is unchanged.
