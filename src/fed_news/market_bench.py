@@ -9,6 +9,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import requests
 
 from fed_news import config, http, models
 from fed_news.alfred import api_key
@@ -26,10 +27,12 @@ OUT = config.RESULTS / "text"
 
 
 def fetch_series(sid: str) -> pd.Series:
+    url = FRED_OBS.format(sid, api_key())
     try:
-        payload = json.loads(http.get(FRED_OBS.format(sid, api_key()), cache=False))
-    except Exception:
+        raw = http.get(url, cache=False)
+    except (requests.RequestException, FileNotFoundError):
         raise RuntimeError(f"FRED request failed for {sid}") from None  # never echo the URL: it holds the key
+    payload = json.loads(raw)
     obs = pd.DataFrame(payload["observations"])
     return pd.Series(pd.to_numeric(obs["value"], errors="coerce").to_numpy(),
                      index=pd.to_datetime(obs["date"]), name=sid).dropna()

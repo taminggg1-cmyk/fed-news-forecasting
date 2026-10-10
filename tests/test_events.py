@@ -26,6 +26,7 @@ def test_weekend_release_joins_next_trading_day():
     assert row["n_docs"] == 2 and np.isclose(row["stance"], 0.2) and row["category"] == "minutes"
     assert np.isclose(row["dy2"], 15.0) and np.isclose(row["dy2_before"], 5.0)               # Mon-Fri, Fri-Thu
     assert pd.Timestamp("2005-01-08") not in out.index
+    assert np.isclose(row["surprise"], 0.2 - 0.5)       # a weekend document must not leak into its own baseline
 
 
 def test_surprise_window_excludes_event_documents_and_old_ones():

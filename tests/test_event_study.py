@@ -23,6 +23,11 @@ def test_walk_forward_uses_only_earlier_days():
     cut = e.index[k]
     cols = ["pred_small", "pred_large"]
     assert np.allclose(base.loc[:cut, cols], again.loc[:cut, cols])
+    pert2 = e.copy()
+    pert2.iloc[k:, pert2.columns.get_loc("surprise")] *= 50.0       # later regressors change too
+    again2 = es.walk_forward(pert2, "dy2", test_start=str(e.index[200].date()))
+    assert np.allclose(base.loc[:cut, cols].iloc[:-1], again2.loc[:cut, cols].iloc[:-1])
+    assert np.allclose(base.loc[:cut, "pred_small"], again2.loc[:cut, "pred_small"])
 
 
 def test_decide_rule():
@@ -55,3 +60,12 @@ def test_decide_rejects_nan():
         pass
     else:
         raise AssertionError("NaN p must raise")
+
+
+def test_full_sample_ols_positive_slope_and_per_category_p():
+    e = synthetic()
+    e["category"] = np.where(np.arange(len(e)) % 2 == 0, "speech", "minutes")
+    out = es.full_sample_ols(e, test_start=str(e.index[0].date()), test_end=str(e.index[-1].date()))
+    assert out["ols_slope"] > 4 and out["ols_p_one_sided"] < 0.01
+    summary, _ = es.run(e, test_start=str(e.index[200].date()))
+    assert {"cw_p_speech", "cw_p_minutes"} <= set(summary)

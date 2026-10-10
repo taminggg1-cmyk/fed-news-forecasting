@@ -31,3 +31,13 @@
 
 - No deviation after tag `prereg-text`. Before the tag, code review led to keying events by their outcome trading day (weekend and holiday releases join the next trading day) so that no two events share an outcome; the spec and PREREG_TEXT.md were updated before any event-day yield change was computed.
 - The look-ahead comparison changes two things at once: the language model (ModernBERT-base instead of the per-year ChronoBERT vintages) and the label dating (all labels at once). It shows what a typical non-time-consistent pipeline would report, not the separate effect of each choice.
+
+### Plan 5 post-results notes (final review)
+
+- Look-ahead comparison (exploratory, added after results): the naive pipeline differs from the ChronoBERT pipeline in at least four ways: the language model (one ModernBERT instead of 27 ChronoBERT vintages), label dating (all labels at once), label count (3,074 against 418-2,438 after the 20% hold-out) and overlap (its training sentences come from the documents it scores). The comparison illustrates what a typical pipeline reports; it does not isolate look-ahead. The direct tests of the naive pipeline against ChronoBERT on the same dates (naive_comparison.csv column dm_p_naive_vs_chrono, lookahead_event_compare.csv) are not significant. naive_event_study.csv carries no H5 verdict: the H5 rule applies only to the pre-registered ChronoBERT pipeline.
+- Release-time caveat: the corpus has release dates only, and the 2-year yield is the afternoon fixing. Releases after that quote (late speeches, the end of press conferences) are matched to a yield fixed before they happened, so the daily event test is conservative: "not supported" means no detectable effect in a close-to-close daily window, not that Fed text carries no event-day information.
+- Market benchmark: two separate bills (3-month bill on the full sample, 4-week bill from 2001-07-31), each with its own spread, replace the spec's spliced series. This was decided before the tag (plan, PREREG_TEXT.md). The expanding-mean spread drifts, so the bill is a weak benchmark and the table is descriptive.
+- Void rule: about 30% of test events follow an event on the previous trading day, so there the placebo outcome is the previous event's own outcome. Disclosure only; the rule is as pre-registered.
+- Method details not in the spec: press conferences are grouped with statements; MIN_TRAIN never binds; the first events (no earlier trading day pair) are dropped; zero-change days are excluded from sign accuracy.
+- Commit 658f1a0 also regenerated RESULTS.md and RESULTS_H2A.md: only the provenance and the mirrored deviation notes changed, no number.
+- Pre-registration timestamps are local git metadata (lightweight tags, no remote).

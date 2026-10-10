@@ -61,3 +61,48 @@ def test_naive_panel_replaces_only_stance_columns(monkeypatch, tmp_path):
     assert np.allclose(out["n_stance"], [0.2, 0.2, 0.6, 0.6])             # carried forward when a month is empty
     assert np.isnan(out["n_stance_chg"].iloc[0]) and np.allclose(out["n_stance_chg"].iloc[1:], [0.0, 0.4, 0.0])
     assert (out["n_beige"] == 1.0).all()
+
+
+def _events(n=1500, slope=2.0, seed=0):
+    rng = np.random.default_rng(seed)
+    days = pd.bdate_range("1998-01-01", periods=n)
+    s = rng.normal(size=n)
+    return pd.DataFrame({"surprise": s, "dy2": slope * s + rng.normal(size=n), "dy2_before": rng.normal(size=n),
+                         "category": "speech", "stance": s, "n_docs": 1}, index=pd.Index(days, name="day"))
+
+
+def test_event_compare_columns():
+    a, b = _events(), _events(seed=1)
+    out = ns.event_compare(a, b, test_start="2001-01-01")
+    for c in ("n_common", "mse_small_chrono", "mse_large_naive", "mse_ratio_chrono", "mse_ratio_naive",
+              "dm_p_naive_vs_chrono"):
+        assert c in out.columns
+    assert 0 <= out["dm_p_naive_vs_chrono"].iloc[0] <= 1
+
+
+def test_compare_pipelines_writes_direct_column_and_no_verdict(monkeypatch, tmp_path):
+    dates = pd.date_range("2005-01-01", periods=30, freq="MS")
+    rng = np.random.default_rng(0)
+
+    def preds(noise):
+        return pd.DataFrame({"date": dates, "y_true": 1.0 + np.arange(30) * 0.01,
+                             "y_pred": 1.0 + np.arange(30) * 0.01 + rng.normal(scale=noise, size=30),
+                             "lag": 1.0, "class_true": 1, "class_pred": 1})
+    for task in ("T1", "T2"):
+        for n in ("S", "S+N"):
+            preds(0.1).to_csv(tmp_path / f"preds_{task}_{n}.csv", index=False)
+    pd.DataFrame({"doc_id": ["a"]}).to_pickle(tmp_path / "naive.pkl")
+    pd.DataFrame({"y2": [1.0]}).to_pickle(tmp_path / "market_daily.pkl")
+    monkeypatch.setattr(ns.config, "RESULTS", tmp_path)
+    monkeypatch.setattr(ns.config, "DATA", tmp_path)
+    monkeypatch.setattr(ns, "OUT", tmp_path)
+    monkeypatch.setattr(ns, "OUT_PATH", tmp_path / "naive.pkl")
+    monkeypatch.setattr(ns, "naive_panel", lambda name, d: None)
+    monkeypatch.setattr(ns, "common_rows", lambda x: x)
+    monkeypatch.setattr(ns, "run_spec", lambda *a, **k: preds(0.2))
+    monkeypatch.setattr(ns, "build_events", lambda d, y: _events())
+    monkeypatch.setattr(ns, "load_events", lambda: _events(seed=3))
+    table = ns.compare_pipelines()
+    assert "dm_p_naive_vs_chrono" in table.columns
+    assert "verdict" not in pd.read_csv(tmp_path / "naive_event_study.csv").columns
+    assert (tmp_path / "lookahead_event_compare.csv").exists()

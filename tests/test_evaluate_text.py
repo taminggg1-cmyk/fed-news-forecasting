@@ -11,8 +11,11 @@ def test_report_with_all_inputs(tmp_path, monkeypatch):
     pd.DataFrame([{"task": "T1", "pipeline": "naive", "rmse": 0.15}]).to_csv(out / "naive_comparison.csv", index=False)
     monkeypatch.setattr(config, "RESULTS", tmp_path)
     monkeypatch.setattr(config, "REPO", tmp_path)
+    monkeypatch.setattr(config, "DATA", tmp_path)
     monkeypatch.setattr(et, "_git", lambda *a: "abc123")
     et.main()
     text = (tmp_path / "RESULTS_TEXT.md").read_text(encoding="utf-8")
     assert "**H5 verdict: supported.**" in text
     assert "exploratory" in text.lower() and "not run" in text      # missing ablation / market sections
+    for phrase in ("conservative", "at least four ways", "weak benchmark", "Unadjusted"):
+        assert phrase in text

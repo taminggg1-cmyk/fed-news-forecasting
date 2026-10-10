@@ -51,3 +51,13 @@ def test_fetch_error_hides_url(monkeypatch):
         assert "SECRETKEY" not in str(err) and err.__cause__ is None and err.__suppress_context__
     else:
         raise AssertionError("must raise")
+
+
+def test_bill_dated_on_cutoff_is_not_used():
+    df = panel()
+    bill = pd.Series(df["y_level"].to_numpy() - 0.25, index=df.index - pd.Timedelta(days=1))
+    base = mb.bill_forecast(df, bill, "T1", "1998-01-01")
+    spiked = pd.concat([bill, pd.Series(99.0, index=df["cutoff"])]).sort_index()   # sentinel dated exactly on cutoffs
+    spiked = spiked[~spiked.index.duplicated()]
+    again = mb.bill_forecast(df, spiked, "T1", "1998-01-01")
+    assert (again["y_pred"] < 50).all() and np.allclose(base["y_pred"], again["y_pred"])
