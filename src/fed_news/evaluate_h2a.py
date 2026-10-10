@@ -70,7 +70,9 @@ def provenance_section(repo=None) -> str:
     diff = _git(repo, "diff", "--stat", H2A_TAG, "--", "src") if tag != "no tag" else ""
     return "\n".join([f"- prereg-h2a tag commit: {tag}", f"- HEAD: {_git(repo, 'rev-parse', '--short', 'HEAD')}",
                       "- `git diff --stat prereg-h2a -- src`:", "", "```", diff, "```", "",
-                      f"evaluate_h2a.py was committed ({EVAL_COMMIT}) before the first forecast file was written."])
+                      f"evaluate_h2a.py was committed ({EVAL_COMMIT}) before the first forecast file was written. "
+                      "Later edits add report sections only; the pre-registered test code (pair_tests, "
+                      "variance_rule, Holm) is unchanged."])
 
 
 def _plan1(task, name) -> pd.DataFrame:
@@ -135,7 +137,7 @@ def epochs_table(diag) -> str:
         return "best-epoch diagnostic not run"
     e = pd.read_csv(path)
     g = e.groupby(["task", "spec"])["best_epoch"]
-    t = pd.DataFrame({"refits": g.size(), "share best epoch 0": g.apply(lambda x: float((x == 0).mean())),
+    t = pd.DataFrame({"seeds": e.groupby(["task", "spec"])["seed"].nunique(), "refits": g.size(), "share best epoch 0": g.apply(lambda x: float((x == 0).mean())),
                       "median best epoch": g.median()}).reset_index()
     return t.to_markdown(index=False, floatfmt=".3f")
 
@@ -149,11 +151,11 @@ def exploratory_section() -> list[str]:
         "### Hybrid against its own linear anchor and against the random walk (exploratory, added after results)",
         "", "One-sided DM p-values on the seed-mean ensembles; the anchor is the Plan 1 forecast "
         "results/preds_<task>_<S|S+N>.csv. A small p means the anchor (or the random walk) is better.", "",
-        anchor_comparison().to_markdown(index=False, floatfmt=".4f"), "",
+        anchor_comparison().to_markdown(index=False, floatfmt=".3g"), "",
         "### MSE decomposition of the hybrid S vs S+N gap (exploratory, added after results)", "",
         mse_decomposition().to_markdown(index=False, floatfmt=".5f"), "",
         "### Best epoch kept by the TFT early stopping (exploratory, added after results)", "",
-        "Epoch 0 means the untrained weights were kept. All 8 seeds, every refit.", "", epochs_table(diag), "",
+        "Epoch 0 means the untrained weights were kept. Every refit of every seed listed in the seeds column.", "", epochs_table(diag), "",
         "### GPU re-run of the TFT and hybrid specs (exploratory, added after results)", "",
     ]
     rerun = diag / "rerun_metrics.csv"

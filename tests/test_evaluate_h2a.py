@@ -88,7 +88,7 @@ def test_provenance_section_uses_git_helper(monkeypatch):
     monkeypatch.setattr(ev, "_git", lambda repo, *a: answers[a[0]])
     text = ev.provenance_section()
     assert "e931dfc" in text and "abc1234" in text and "src/x.py" in text
-    assert "evaluate_h2a.py was committed (0554690) before the first forecast file was written." in text
+    assert "evaluate_h2a.py was committed (0554690) before the first forecast file was written. Later edits" in text
 
 
 def test_pair_tests_t2_has_dm_and_mcnemar(tmp_path, monkeypatch):
