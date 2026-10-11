@@ -1,0 +1,2 @@
+pipeline,role,n_test,cw_t,cw_p,void_cw_t,void_cw_p,verdict,sign_accuracy,cw_p_minutes,n_minutes,cw_p_speech,n_speech,cw_p_statement,n_statement,ols_n,ols_slope,ols_t_hac,ols_p_one_sided
+H6: all documents,confirmatory,3158,0.3357398801153967,0.3685335148353799,-0.7024406116571642,0.7587977869931425,not supported,0.4965490797546012,0.299759966850878,206.0,0.5861056391873288,2730,0.2767616873272465,222.0,3158,2.1980490717400394,1.1917382134382053,0.11668195466913156
