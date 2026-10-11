@@ -115,3 +115,34 @@ def test_gate_needs_tag_and_osf_url(tmp_path):
     assert "OSF" in dt.gate(tmp_path)
     (tmp_path / dt.OSF_NAME).write_text("https://osf.io/abcd1/\n", encoding="utf-8")
     assert dt.gate(tmp_path) is None
+
+
+import pytest
+
+
+def test_run_refuses_without_registration(tmp_path, monkeypatch):
+    monkeypatch.setattr(dt, "gate", lambda repo=None: "tag prereg-study3 missing")
+    with pytest.raises(PermissionError, match="refused"):
+        dt.run(out_path=tmp_path / "a.pkl", shuffled_path=tmp_path / "b.pkl", results=tmp_path)
+
+
+def test_run_writes_real_and_shuffled_scores(tmp_path, monkeypatch):
+    monkeypatch.setattr(dt, "gate", lambda repo=None: None)
+    docs, meet, emb = world()
+    dt.run(docs=docs.assign(text="x"), meetings=meet, embed=emb, out_path=tmp_path / "real.pkl",
+           shuffled_path=tmp_path / "shuf.pkl", results=tmp_path / "res")
+    real, shuf = pd.read_pickle(tmp_path / "real.pkl"), pd.read_pickle(tmp_path / "shuf.pkl")
+    assert {"doc_id", "type", "release", "source", "label", "label_date", "year", "stance"} <= set(real.columns)
+    assert "text" not in real.columns
+    assert (real["doc_id"] == shuf["doc_id"]).all()
+    assert (tmp_path / "res" / "probe_quality.csv").exists()
+    assert (tmp_path / "res" / "probe_quality_shuffled.csv").exists()
+
+
+def test_run_refuses_duplicate_doc_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(dt, "gate", lambda repo=None: None)
+    docs, meet, emb = world()
+    docs = pd.concat([docs, docs.iloc[:1]], ignore_index=True).assign(text="x")
+    with pytest.raises(ValueError, match="duplicate"):
+        dt.run(docs=docs, meetings=meet, embed=emb, out_path=tmp_path / "a.pkl",
+               shuffled_path=tmp_path / "b.pkl", results=tmp_path)

@@ -130,3 +130,43 @@ def gate(repo=config.REPO) -> str | None:
     if not url.startswith("https://osf.io/"):
         return f"{OSF_NAME} must hold the OSF registration URL"
     return None
+
+
+def run(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, embed=None,
+        out_path=OUT_PATH, shuffled_path=SHUFFLED_PATH, results=RESULTS, repo=config.REPO) -> None:
+    reason = gate(repo)
+    if reason:
+        raise PermissionError(f"Study 3 real-label run refused: {reason}")
+    if docs is None:
+        from fed_news.stance2 import all_docs
+        docs = all_docs()
+    if not docs["doc_id"].is_unique:
+        raise ValueError("duplicate doc_id in the document table")
+    meetings = pd.read_pickle(config.DATA / "meetings.pkl") if meetings is None else meetings
+    if embed is None:
+        from fed_news.decision_embed import cached_embedder
+        embed = cached_embedder(docs)
+    labelled = next_decision(docs.drop(columns=["text"], errors="ignore"), meetings)
+    results.mkdir(parents=True, exist_ok=True)
+    for path, seed, name in ((out_path, None, "probe_quality.csv"),
+                             (shuffled_path, 0, "probe_quality_shuffled.csv")):
+        scored, quality = score_all(labelled, embed, shuffle_seed=seed)
+        scored.to_pickle(path)
+        quality.to_csv(results / name, index=False)
+        print(f"{path.name}: {int(scored['stance'].notna().sum())} of {len(scored)} documents scored", flush=True)
+
+
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--embed-only", action="store_true", help="compute ChronoBERT embeddings only (no outcome)")
+    args = ap.parse_args(argv)
+    if args.embed_only:
+        from fed_news.decision_embed import embed_all
+        from fed_news.stance2 import all_docs
+        embed_all(all_docs())
+    else:
+        run()
+
+
+if __name__ == "__main__":
+    main()
