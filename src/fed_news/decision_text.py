@@ -29,6 +29,7 @@ C_GRID = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
 FALLBACK_C = 0.01
 MIN_DOCS, MIN_PER_CLASS = 100, 10
 POC_LAST_YEAR = 2000
+CENTRE_DAYS, CENTRE_MIN = 180, 5
 
 
 def next_decision(docs: pd.DataFrame, meetings: pd.DataFrame) -> pd.DataFrame:
@@ -85,6 +86,29 @@ def doc_scores(model, mu: np.ndarray, sd: np.ndarray, X: np.ndarray) -> np.ndarr
     return proba[:, 2] - proba[:, 0]
 
 
+def centred_embedder(docs: pd.DataFrame, embed, window_days: int = CENTRE_DAYS, min_docs: int = CENTRE_MIN):
+    """The "change in language" view: a document's embedding minus the mean embedding (same vintage) of the documents
+    released in the `window_days` strictly before its release date; NaN with fewer than `min_docs` of them."""
+    order = docs.sort_values("release")
+    release, ids = order["release"].to_numpy(dtype="datetime64[ns]"), order["doc_id"].to_numpy()
+    when = dict(zip(ids, release))
+    memo: dict[tuple[int, str], np.ndarray] = {}
+
+    def centred(vintage: int, doc_ids: list[str]) -> np.ndarray:
+        missing = [d for d in doc_ids if (vintage, d) not in memo]
+        if missing:
+            raw = embed(vintage, missing)
+            for d, x in zip(missing, raw):
+                r = when[d]
+                lo, hi = np.searchsorted(release, r - np.timedelta64(window_days, "D")), np.searchsorted(release, r)
+                prior = ids[lo:hi].tolist()
+                memo[(vintage, d)] = (x - embed(vintage, prior).mean(axis=0) if len(prior) >= min_docs
+                                      else np.full_like(x, np.nan, dtype=float))
+        return np.stack([memo[(vintage, d)] for d in doc_ids])
+
+    return centred
+
+
 def score_all(labelled: pd.DataFrame, embed, shuffle_seed: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Score every document with the classifier of its release year. embed(vintage, doc_ids) -> (n, dim) array.
 
@@ -101,12 +125,21 @@ def score_all(labelled: pd.DataFrame, embed, shuffle_seed: int | None = None) ->
             rows.append({**row, "classifier": False})
             continue
         v = vintage_year(year)
+        X = embed(v, train["doc_id"].tolist())
+        finite = np.isfinite(X).all(axis=1)              # documents that cannot be embedded are skipped
+        train, X = train[finite], X[finite]
+        if not enough(train):
+            rows.append({**row, "classifier": False})
+            continue
         y = train["label"].to_numpy(int)
         if shuffle_seed is not None:
             y = np.random.default_rng([shuffle_seed, year]).permutation(y)
-        model, mu, sd, c = fit_probe(embed(v, train["doc_id"].tolist()), y)
+        model, mu, sd, c = fit_probe(X, y)
+        Xs = embed(v, docs.iloc[here]["doc_id"].tolist())
+        ok = np.isfinite(Xs).all(axis=1)
+        here, Xs = here[ok], Xs[ok]
         ydocs = docs.iloc[here]
-        proba = model.predict_proba((embed(v, ydocs["doc_id"].tolist()) - mu) / sd)
+        proba = model.predict_proba((Xs - mu) / sd)
         stance[here] = proba[:, 2] - proba[:, 0]
         truth, pred = ydocs["label"].to_numpy(int), proba.argmax(axis=1)
         known = truth >= 0
@@ -182,7 +215,7 @@ def poc_summary(scored: pd.DataFrame, quality: pd.DataFrame) -> dict:
 
 
 def poc(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, embed=None,
-        results=RESULTS) -> dict:
+        results=RESULTS, centre: bool = False, old_scores: pd.DataFrame | None = None, prefix: str = "poc") -> dict:
     """Feasibility check before registration, on release years up to POC_LAST_YEAR only (no gate needed)."""
     if docs is None:
         from fed_news.stance2 import all_docs
@@ -193,12 +226,22 @@ def poc(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, 
     if embed is None:
         from fed_news.decision_embed import cached_embedder
         embed = cached_embedder(docs)
+    if centre:
+        embed = centred_embedder(docs, embed)
     labelled = poc_labels(next_decision(docs.drop(columns=["text"], errors="ignore"), meetings))
     scored, quality = score_all(labelled, embed)
     summary = poc_summary(scored, quality)
-    results.mkdir(parents=True, exist_ok=True)
-    quality.to_csv(results / "poc_quality.csv", index=False)
-    pd.DataFrame([summary]).to_csv(results / "poc_summary.csv", index=False)
+    if old_scores is not None:  # attempt-2 pass mark: beat the old hawk/dove score on the same documents
+        both = scored[(scored["label"] >= 0) & scored["stance"].notna()].merge(
+            old_scores[["doc_id", "stance"]].dropna(), on="doc_id", suffixes=("", "_old"))
+        rho = float(stats.spearmanr(both["stance"], both["label"]).statistic)
+        rho_old = float(stats.spearmanr(both["stance_old"], both["label"]).statistic)
+        summary.update({"n_common": len(both), "spearman_common": rho, "spearman_old": rho_old,
+                        "passed_v2": bool(rho > 0 and rho > rho_old)})
+    if results is not None:
+        results.mkdir(parents=True, exist_ok=True)
+        quality.to_csv(results / f"{prefix}_quality.csv", index=False)
+        pd.DataFrame([summary]).to_csv(results / f"{prefix}_summary.csv", index=False)
     print(quality.round(3).to_string(index=False), flush=True)
     print(summary, flush=True)
     return summary
@@ -208,9 +251,12 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--embed-only", action="store_true", help="compute ChronoBERT embeddings only (no outcome)")
     ap.add_argument("--poc", action="store_true", help="proof of concept on release years up to 2000 only")
+    ap.add_argument("--poc-centred", action="store_true", help="proof of concept, attempt 2: change in language")
     args = ap.parse_args(argv)
     if args.poc:
         poc()
+    elif args.poc_centred:
+        poc(centre=True, old_scores=pd.read_pickle(config.DATA / "doc_stance2.pkl"), prefix="poc2")
     elif args.embed_only:
         from fed_news.decision_embed import embed_all
         from fed_news.stance2 import all_docs

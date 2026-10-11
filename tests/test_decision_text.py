@@ -173,3 +173,35 @@ def test_poc_runs_without_registration(tmp_path, monkeypatch):
     s = dt.poc(docs=docs.assign(text="x"), meetings=meet, embed=emb, results=tmp_path)
     assert (tmp_path / "poc_quality.csv").exists() and (tmp_path / "poc_summary.csv").exists()
     assert set(s) >= {"n_docs", "accuracy", "majority_accuracy", "spearman", "passed"}
+
+
+def test_centred_embedder_subtracts_mean_of_recent_earlier_documents():
+    docs = pd.DataFrame({"doc_id": list("abcde"),
+                         "release": pd.to_datetime(["2000-01-01", "2000-02-01", "2000-03-01", "2000-03-01",
+                                                    "2001-06-01"])})
+    table = {"a": np.array([1.0, 0.0]), "b": np.array([3.0, 0.0]), "c": np.array([10.0, 1.0]),
+             "d": np.array([0.0, 5.0]), "e": np.array([7.0, 7.0])}
+    raw = lambda v, ids: np.stack([table[i] for i in ids])
+    f = dt.centred_embedder(docs, raw, window_days=180, min_docs=2)
+    out = f(1999, ["c", "d", "a", "e"])
+    np.testing.assert_allclose(out[0], [10.0 - 2.0, 1.0])  # c: mean of a, b (d is same day, not earlier)
+    np.testing.assert_allclose(out[1], [0.0 - 2.0, 5.0])
+    assert np.isnan(out[2]).all()                          # a: no earlier documents
+    assert np.isnan(out[3]).all()                          # e: nothing in the previous 180 days
+
+
+def test_score_all_skips_documents_without_a_finite_embedding():
+    docs, meet, emb = world()
+    blank = set(docs["doc_id"].iloc[::7])
+    holey = lambda v, ids: np.stack([np.full(4, np.nan) if i in blank else emb(v, [i])[0] for i in ids])
+    scored, _ = dt.score_all(dt.next_decision(docs, meet), holey)
+    assert scored.loc[scored["doc_id"].isin(blank), "stance"].isna().all()
+    assert scored.loc[~scored["doc_id"].isin(blank) & (scored["release"].dt.year >= 1996), "stance"].notna().all()
+
+
+def test_poc_compares_with_the_old_score():
+    docs, meet, emb = world()
+    old = pd.DataFrame({"doc_id": docs["doc_id"], "stance": np.random.default_rng(3).normal(size=len(docs))})
+    s = dt.poc(docs=docs.assign(text="x"), meetings=meet, embed=emb, results=None, old_scores=old)
+    assert {"spearman_common", "spearman_old", "passed_v2"} <= set(s)
+    assert s["passed_v2"] == (s["spearman_common"] > 0 and s["spearman_common"] > s["spearman_old"])
