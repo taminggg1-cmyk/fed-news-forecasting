@@ -1,0 +1,2 @@
+years,n_docs,accuracy,majority_accuracy,spearman,passed,n_common,spearman_common,spearman_old,passed_v2
+1996-2000,776,0.4368556701030928,0.7255154639175257,-0.15116024401650882,False,776,-0.15116024401650882,0.05143753894680086,False
