@@ -146,3 +146,30 @@ def test_run_refuses_duplicate_doc_ids(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="duplicate"):
         dt.run(docs=docs, meetings=meet, embed=emb, out_path=tmp_path / "a.pkl",
                shuffled_path=tmp_path / "b.pkl", results=tmp_path)
+
+
+def test_poc_labels_never_keep_test_window_outcomes():
+    docs = pd.DataFrame({"doc_id": list("abc"),
+                         "release": pd.to_datetime(["2000-01-05", "2000-12-20", "2001-02-01"])})
+    out = dt.poc_labels(dt.next_decision(docs, meetings()))
+    assert out["doc_id"].tolist() == ["a", "b"]             # 2001 releases dropped
+    assert out["label"].tolist() == [2, -1]                 # b's label is the 2001-01-31 decision: removed
+    assert pd.isna(out["label_date"].iloc[1])
+
+
+def test_poc_summary_pass_mark():
+    quality = pd.DataFrame({"year": [1997, 1998], "classifier": [True, True], "n_scored_labelled": [10, 30],
+                            "accuracy": [0.6, 0.5], "majority_accuracy": [0.5, 0.4]})
+    scored = pd.DataFrame({"label": [0, 1, 2, 2, -1], "stance": [-0.5, 0.0, 0.4, 0.6, 0.9]})
+    s = dt.poc_summary(scored, quality)
+    assert s["accuracy"] == pytest.approx(21 / 40) and s["majority_accuracy"] == pytest.approx(17 / 40)
+    assert s["spearman"] > 0 and s["passed"]
+    assert not dt.poc_summary(scored, quality.assign(accuracy=[0.4, 0.3]))["passed"]
+
+
+def test_poc_runs_without_registration(tmp_path, monkeypatch):
+    monkeypatch.setattr(dt, "gate", lambda repo=None: "tag prereg-study3 missing")
+    docs, meet, emb = world()
+    s = dt.poc(docs=docs.assign(text="x"), meetings=meet, embed=emb, results=tmp_path)
+    assert (tmp_path / "poc_quality.csv").exists() and (tmp_path / "poc_summary.csv").exists()
+    assert set(s) >= {"n_docs", "accuracy", "majority_accuracy", "spearman", "passed"}

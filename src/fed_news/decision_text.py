@@ -13,6 +13,7 @@ import subprocess
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from scipy import stats
 from sklearn.metrics import f1_score
 
 from fed_news import config, models
@@ -27,6 +28,7 @@ CLASSES = (0, 1, 2)
 C_GRID = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
 FALLBACK_C = 0.01
 MIN_DOCS, MIN_PER_CLASS = 100, 10
+POC_LAST_YEAR = 2000
 
 
 def next_decision(docs: pd.DataFrame, meetings: pd.DataFrame) -> pd.DataFrame:
@@ -156,11 +158,60 @@ def run(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, 
         print(f"{path.name}: {int(scored['stance'].notna().sum())} of {len(scored)} documents scored", flush=True)
 
 
+def poc_labels(labelled: pd.DataFrame, last_year: int = POC_LAST_YEAR) -> pd.DataFrame:
+    """Documents released up to `last_year`; labels from meetings on or after 1 January of the next year are
+    removed, so the proof of concept never reads an outcome from the 2001-2026 test window."""
+    cut = pd.Timestamp(f"{last_year + 1}-01-01")
+    docs = labelled[labelled["release"] < cut]
+    late = (docs["label_date"] >= cut).to_numpy()
+    return docs.assign(label=np.where(late, -1, docs["label"].to_numpy()),
+                       label_date=docs["label_date"].where(~late))
+
+
+def poc_summary(scored: pd.DataFrame, quality: pd.DataFrame) -> dict:
+    """Pass mark fixed before running: pooled out-of-sample accuracy above the majority class and a positive
+    rank correlation between the score and the next decision (cut < hold < hike)."""
+    q = quality[(quality["classifier"] == True) & quality["accuracy"].notna()]  # noqa: E712
+    n = q["n_scored_labelled"].astype(float)
+    acc = float((q["accuracy"] * n).sum() / n.sum())
+    maj = float((q["majority_accuracy"] * n).sum() / n.sum())
+    known = scored[(scored["label"] >= 0) & scored["stance"].notna()]
+    rho = float(stats.spearmanr(known["stance"], known["label"]).statistic)
+    return {"years": f"{int(q['year'].min())}-{int(q['year'].max())}", "n_docs": int(n.sum()), "accuracy": acc,
+            "majority_accuracy": maj, "spearman": rho, "passed": bool(acc > maj and rho > 0)}
+
+
+def poc(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, embed=None,
+        results=RESULTS) -> dict:
+    """Feasibility check before registration, on release years up to POC_LAST_YEAR only (no gate needed)."""
+    if docs is None:
+        from fed_news.stance2 import all_docs
+        docs = all_docs()
+    if not docs["doc_id"].is_unique:
+        raise ValueError("duplicate doc_id in the document table")
+    meetings = pd.read_pickle(config.DATA / "meetings.pkl") if meetings is None else meetings
+    if embed is None:
+        from fed_news.decision_embed import cached_embedder
+        embed = cached_embedder(docs)
+    labelled = poc_labels(next_decision(docs.drop(columns=["text"], errors="ignore"), meetings))
+    scored, quality = score_all(labelled, embed)
+    summary = poc_summary(scored, quality)
+    results.mkdir(parents=True, exist_ok=True)
+    quality.to_csv(results / "poc_quality.csv", index=False)
+    pd.DataFrame([summary]).to_csv(results / "poc_summary.csv", index=False)
+    print(quality.round(3).to_string(index=False), flush=True)
+    print(summary, flush=True)
+    return summary
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--embed-only", action="store_true", help="compute ChronoBERT embeddings only (no outcome)")
+    ap.add_argument("--poc", action="store_true", help="proof of concept on release years up to 2000 only")
     args = ap.parse_args(argv)
-    if args.embed_only:
+    if args.poc:
+        poc()
+    elif args.embed_only:
         from fed_news.decision_embed import embed_all
         from fed_news.stance2 import all_docs
         embed_all(all_docs())
