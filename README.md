@@ -1,0 +1,440 @@
+# Fed News Forecasting: does Federal Reserve text help forecast the federal funds rate?
+
+A pre-registered, look-ahead-free study of whether the text of Federal Reserve communication, read by a
+time-consistent language model (ChronoBERT), improves forecasts of the US federal funds rate, and whether
+deep-learning models (LSTM, GRU, Temporal Fusion Transformer) beat simple linear models. It replicates and
+extends Chan-Lau, Quach and Shi (2025, AMRO WP/25-10).
+
+**Short answer.** Fed text makes forecasts slightly better in most models, but the gain is small, never passes
+a pre-registered test, and is not robust to retraining the text classifier. A simple linear model with Fed text
+significantly outperforms LSTM, GRU and TFT. Market interest rates beat everything. A published AI forecasting
+paper does not beat a "no change" forecast on its own test window.
+
+| Study | Question | Pre-registered verdict | Key numbers |
+|---|---|---|---|
+| Plan 1 (H1, tag `prereg`) | Does text help the primary linear models? | Not supported | Monthly RMSE 0.180 to 0.166 (-7.5%), one-sided DM p = 0.077; per meeting p = 0.061; decisions p = 0.23 |
+| Plan 2 (H2a, tag `prereg-h2a`) | Does text help LSTM, GRU, TFT and a hybrid? | Not supported | 0 of 10 tests significant after Holm; hybrid raw p = 0.008 / 0.011 |
+| Plan 5 (H5, tag `prereg-text`) | Does the stance surprise of each Fed release predict the same-day 2-year yield move? | Not supported | Clark-West p = 0.129 on 1,778 event days |
+| Study 2 (H6, tag `prereg-study2`) | Same, adding 3,562 regional Fed presidents' speeches and a retrained classifier | Not supported | Clark-West p = 0.369 on 3,158 event days |
+
+Full reports: [`RESULTS.md`](RESULTS.md), [`RESULTS_H2A.md`](RESULTS_H2A.md), [`RESULTS_FROZEN.md`](RESULTS_FROZEN.md),
+[`RESULTS_TEXT.md`](RESULTS_TEXT.md), [`RESULTS_STUDY2.md`](RESULTS_STUDY2.md),
+[`RESULTS_STUDY2_FROZEN.md`](RESULTS_STUDY2_FROZEN.md). Every change after a pre-registration is listed in
+[`DEVIATIONS.md`](DEVIATIONS.md).
+
+---
+
+## Contents
+
+1. [What is forecast](#1-what-is-forecast)
+2. [Repository layout](#2-repository-layout)
+3. [Data](#3-data)
+4. [Reading the Fed's tone: the ChronoBERT stance classifier](#4-reading-the-feds-tone-the-chronobert-stance-classifier)
+5. [Input features](#5-input-features)
+6. [Models and how they are trained](#6-models-and-how-they-are-trained)
+7. [Event studies (H5, H6)](#7-event-studies-h5-h6)
+8. [Exploratory analyses](#8-exploratory-analyses)
+9. [Statistical tests](#9-statistical-tests)
+10. [Pre-registration and research integrity](#10-pre-registration-and-research-integrity)
+11. [Results](#11-results)
+12. [Reproducing the study](#12-reproducing-the-study)
+13. [Limitations](#13-limitations)
+14. [References](#14-references)
+
+---
+
+## 1. What is forecast
+
+| Task | Target | Information set | Test window |
+|---|---|---|---|
+| **T1, monthly** | FRED `FEDFUNDS`, the monthly average effective federal funds rate, in month t | Data available at the end of month t-1; models trained on rows up to t-2 (the original paper's protocol) | Jan 2001 - Sep 2026, 308 months (Jan 2004 dropped for missing data); the paper's window Jan 2016 - Apr 2025 is also reported |
+| **T2, per meeting** | The target rate set at each FOMC meeting (midpoint of the target range) and its class: cut / hold / hike, using a +/-0.125 percentage-point band | Data dated before the meeting; models trained on earlier meetings only | 212 meetings, Jan 2001 - Sep 2026 (270 meetings from 1994, 8 unscheduled) |
+| **Events** | Change in the 2-year Treasury yield (FRED `DGS2`, basis points) on the trading day of each Fed release | Stance of documents released before the event, yields up to the previous trading day | 1,778 (H5) and 3,158 (H6) event days, 2001 - 2026 |
+
+All series start in January 1994. Rows before 2001 are used for training only.
+
+---
+
+## 2. Repository layout
+
+```
+src/fed_news/
+  config.py            paths (data root D:/fed_news, or env var FED_NEWS_DATA), windows, grids, seeds
+  http.py              cached HTTP downloads
+  alfred.py            ALFRED real-time vintages via the FRED API
+  market.py            daily market series (target rate, Treasury yields, VIX, oil)
+  fomc_calendar.py     Fed calendar pages
+  meetings.py          FOMC meeting set and target-rate decisions
+  corpus.py            Fed text corpus: statements, minutes, press conferences, Beige Books, speeches
+  indices.py           SF Fed news sentiment, geopolitical risk (GPR), policy uncertainty (EPU)
+  panel.py             T1 and T2 panels: targets, statistics block S, market block M, cutoffs
+  labels.py            stance labels (Trillion Dollar Words + World Central Banks), dated by source document
+  stance.py            per-year ChronoBERT stance classifiers, document stance scores
+  text_features.py     the six news features N
+  models.py            ridge helpers, penalised ordered logit, penalty selection by expanding CV
+  walkforward.py       walk-forward engine, model ladder, placebo and shuffled-label controls
+  run_models.py        runs the Plan 1 ladder
+  stats_tests.py       Diebold-Mariano (HLN), exact McNemar, Holm
+  evaluate.py          Plan 1 metrics, tests, RESULTS.md
+  tft.py               compact Temporal Fusion Transformer
+  neural.py            LSTM/GRU/TFT builders and training loops
+  neural_walk.py       neural walk-forward engine, hybrid with out-of-fold residuals
+  run_neural.py        14 neural specs x 8 seeds, resumable
+  evaluate_h2a.py      Plan 2 metrics, variance rule, tests, RESULTS_H2A.md
+  frozen.py            frozen-model analysis (train once, never update)
+  diag_tft.py          TFT best-epoch diagnostic
+  clark_west.py        Clark-West test for nested models (exploratory)
+  events.py            event days keyed by outcome trading day, stance surprise, yield changes
+  event_study.py       H5 walk-forward OLS, Clark-West, void rule
+  market_bench.py      Treasury-bill market benchmark
+  ablation.py          text feature-group ablation
+  naive_stance.py      look-ahead comparison with ModernBERT trained on all labels
+  evaluate_text.py     RESULTS_TEXT.md
+  fraser.py            FRASER (St. Louis Fed) speech texts
+  regional_corpus.py   regional Fed presidents' speeches: tenure filter, BIS, de-duplication
+  stance2.py           Study 2 classifiers trained on all eligible labels
+  study2.py            H6 and secondary analyses
+  study2_frozen.py     Study 2 frozen analysis
+  evaluate_study2.py   RESULTS_STUDY2.md
+tests/                 222 offline unit tests (pytest)
+results/               all forecasts, metrics and test tables
+docs/superpowers/      design specs and implementation plans
+PREREG*.md             pre-registration documents (one per study)
+DEVIATIONS.md          every deviation, erratum and post-results note
+```
+
+Raw data, caches and API keys live outside the repository (default `D:/fed_news`); see section 12.
+
+---
+
+## 3. Data
+
+| Block | Content | Source |
+|---|---|---|
+| **S: statistics (16)** | Lagged policy rate; M2 (monthly and 12-month change); PCE and core PCE inflation; payroll change; average weekly earnings; nominal GDP growth; U-6 (monthly and 12-month change); PPI; CPI and core CPI; FHFA house prices; 10y-2y and 1y-6m yield slopes. The paper's Table 1 without the commercial property index (no free equivalent); the CRB index replaced by PPI | FRED / **ALFRED real-time vintages**: each value is the latest vintage released strictly before the forecast cutoff |
+| **N: news (6)** | Fed stance, change in Fed stance, Beige Book tone, newspaper sentiment, geopolitical risk, policy uncertainty | See sections 4-5 |
+| **M: market (8)** | 3-month bill, 6-month, 1-year and 2-year yield spreads to the target; target level; zero-lower-bound flag; VIX; WTI oil | FRED daily series as of the cutoff |
+| **Fed text** | 2,840 documents: 240 statements, 263 minutes, 94 press-conference transcripts, 262 Beige Books, 1,981 Board speeches | federalreserve.gov (FOMC calendar, Beige Book archives, speech lists) |
+| **Regional speeches (Study 2)** | 3,562 speeches of regional Federal Reserve Bank presidents within their tenure years: 3,437 from FRASER, 125 from BIS | St. Louis Fed FRASER REST API (35 speech series titles); BIS central bankers' speeches |
+| **Labels** | Hawkish / dovish / neutral sentences: Trillion Dollar Words (Shah et al., 2023) and the Federal Reserve subset of the World Central Banks collection | Hugging Face `gtfintechlab` |
+
+**Real-time rule.** Where ALFRED has no vintage (some series before 2011-2012), the earliest vintage with a
+release lag is used; those values include later revisions and enter every model identically.
+
+**Label dating.** The published `year` field of Trillion Dollar Words does not always match the document
+date, which would leak future labels. Each label is therefore dated by the earliest corpus document that
+contains it (89.3% of Trillion Dollar Words and 98.3% of World Central Banks sentences matched).
+
+---
+
+## 4. Reading the Fed's tone: the ChronoBERT stance classifier
+
+**Why ChronoBERT.** Standard language models have read text written after the events being forecast.
+ChronoBERT (He, Lv, Manela and Wu, 2025) releases one model per year, each trained only on text published up
+to 31 December of that year, which removes this source of look-ahead.
+
+**Training (per classifier year y, from 2000):**
+
+| Setting | Value |
+|---|---|
+| Backbone | `manelalab/chrono-bert-v1-{y-1}1231` (trained on text up to the end of year y-1; 2025-2026 use the 2024 vintage) |
+| Head | mean-pooled last hidden state, then a linear layer with 3 outputs (dovish, hawkish, neutral) |
+| Training labels | all labels whose source document is dated before 1 January of year y |
+| Optimiser | AdamW, learning rate 2e-5, weight decay 0.01, gradient clipping at 1.0, fp16 autocast |
+| Epochs, batch, length | 3 epochs, batch 16, maximum 256 tokens |
+| Seeds | 3 seeds (0, 1, 2); class probabilities averaged |
+| Hold-out (Plan 1) | 20% of eligible labels held out to report accuracy; the classifier that scores documents is trained on the other 80% |
+| Study 2 change | the scoring classifier is trained on 100% of eligible labels |
+
+Held-out sentence accuracy rises from 0.56 (2000) to 0.70 (2025), median 0.655
+([`results/stance_accuracy.csv`](results/stance_accuracy.csv)).
+
+**Scores.** Documents are split into sentences of 30-1000 characters. Sentence stance =
+P(hawkish) - P(dovish); document stance = mean over its sentences. Documents of year y are scored only by the
+classifier of year y; documents from 1994-1999 are scored by the year-2000 classifier and are used only for
+training rows.
+
+---
+
+## 5. Input features
+
+The six news features N, computed per row from documents released before the row's cutoff:
+
+| Feature | Definition (T2: window since the previous meeting; T1: month t-1) |
+|---|---|
+| `n_stance` | Mean of three group means: statements plus press conferences, minutes, speeches (empty groups skipped); carried forward when no documents |
+| `n_stance_chg` | Change in `n_stance` from the previous row |
+| `n_beige` | Loughran-McDonald net tone (pos - neg) / (pos + neg) of the latest Beige Book before the cutoff |
+| `n_news` | SF Fed daily news sentiment, mean over the 30 days ending three days before the cutoff |
+| `n_gpr` | Log geopolitical risk index (Caldara and Iacoviello, 2022), same window; values <= 0 treated as missing |
+| `n_epu` | Log economic policy uncertainty index (Baker, Bloom and Davis, 2016), same window |
+
+All features are standardised with the training rows' mean and standard deviation at each refit.
+
+---
+
+## 6. Models and how they are trained
+
+### 6.1 Walk-forward protocol
+
+Every model is re-estimated on an expanding window and forecasts only rows it has never seen:
+
+- T1: the forecast for month t uses training rows up to month t-2 (`walkforward.train_mask`).
+- T2: the forecast for a meeting uses earlier meetings only.
+- Standardisation, penalty selection and early stopping all use training rows only.
+- Penalties are chosen by five-fold expanding-window cross-validation inside each training window.
+
+### 6.2 Benchmarks
+
+- **No change / always hold:** next month's rate equals the last observed rate; the meeting keeps the rate.
+- **Inertial Taylor rule** (Taylor, 1993): OLS of the rate on its lag, real-time core PCE inflation and real-time U-3 unemployment, walk-forward.
+
+### 6.3 Primary linear models (Plan 1)
+
+- **T1:** ridge regression on the monthly change in the rate; penalty grid of 7 log-spaced values from 0.1 to 1000. Forecast = last rate + predicted change.
+- **T2:** penalised ordered (cumulative) logit for cut < hold < hike, written with `scipy.optimize`, L2 penalty on slopes from {0.01, 0.03, 0.1, 0.3, 1, 3}. The rate forecast is the standing target plus the probability-weighted mean move (mean move sizes per class from the training window, hold = 0); the class forecast is the most probable class.
+- Each is run with S, S+N, S+M and S+M+N, plus a placebo (text features permuted across rows inside each training window) and a shuffled-label control (training targets permuted).
+
+### 6.4 Deep-learning models (Plan 2)
+
+All neural models: Adam optimiser, mean squared error on **standardised targets** (inverted at prediction),
+8 seeds (0-7; initialisation and batch order), ensemble = mean of the 8 seeds' forecasts.
+
+| Model | Architecture | Training | Refit |
+|---|---|---|---|
+| **Paper LSTM** (T1) | 1-layer LSTM, 240 units, 12 monthly steps, no dropout, linear output | lr 1e-4, 300 epochs, batch 32 shuffled per epoch (seeded); predicts the rate level | every 3 months (the pre-registered one-hour rule: one GRU seed-pass with monthly refits took > 3,600 s) |
+| **Paper GRU** (T1) | 1-layer GRU, 188 units, 12 steps | lr 2e-4, 449 epochs, batch 32; level | every 3 months |
+| **Meeting LSTM** (T2) | as the paper LSTM, lookback 4 meetings | as the paper LSTM | every 8 meetings |
+| **TFT** (T1, T2) | compact Temporal Fusion Transformer (below), hidden 32, 4 heads, dropout 0.2, lookback 12 months / 8 meetings | lr 1e-3, full batch, at most 300 epochs, early stopping on the last 20% of training rows with patience 20 (best epoch kept; untrained weights count as epoch 0); predicts the change | every 12 months / 8 meetings |
+| **Hybrid** (T1, T2) | primary linear model (anchor, refit every row) + TFT correction | TFT trained on the anchor's out-of-fold residuals (5 expanding folds inside the training window; folds with fewer than 20 training rows skipped) | TFT every 12 months / 8 meetings |
+
+The LSTM and GRU hyperparameters are those tuned by Chan-Lau, Quach and Shi (2025).
+
+**Compact TFT** ([`src/fed_news/tft.py`](src/fed_news/tft.py)), following Lim, Arik, Loeff and Pfister (2021):
+
+```
+input (batch, time, features)
+  -> Variable Selection Network: per-variable GRNs + softmax weights over variables (per time step)
+  -> LSTM encoder (hidden 32)
+  -> gated skip connection (GLU) + layer norm
+  -> interpretable multi-head attention (4 heads, shared value weights, averaged heads)
+  -> gated skip connection + layer norm
+  -> position-wise Gated Residual Network
+  -> gated skip connection + layer norm
+  -> linear head on the last time step -> point forecast (MSE)
+```
+
+GLU = gated linear unit; GRN = gated residual network (two dense layers, GLU, skip, layer norm). Static
+covariate encoders and the known-future input path are omitted (the problem has no static variables), and the
+quantile head is replaced by a point forecast so that the loss equals the LSTM's.
+
+**Variance rule.** A neural gain counts only if mean RMSE(S) - mean RMSE(S+N) over the 8 seeds exceeds twice
+the larger seed standard deviation (ddof 1).
+
+### 6.5 Frozen models
+
+Following the paper's fixed-rule exercise, each model is trained once on data before 2016-01-01 (or
+2020-01-01) and then forecasts every later month or meeting without updating. Reported next to the same
+model's walk-forward forecasts over the same months (descriptive; not part of any decision).
+
+---
+
+## 7. Event studies (H5, H6)
+
+**Events.** Each statement, set of minutes, press-conference transcript or speech is mapped to its *outcome
+trading day*: the first date with a 2-year yield on or after its release day. All documents with the same
+outcome day form one event, so weekend releases join the next trading day and no two events share an outcome.
+
+**Regressor.** Stance surprise = event stance (mean of its documents) minus the document-mean stance of
+earlier events' documents released within the 30 calendar days before the outcome day (fallback: the mean
+stance of the latest earlier event).
+
+**Outcome.** 2-year yield change in basis points on the outcome day versus the previous trading day.
+
+**Test.** Walk-forward OLS on all strictly earlier events (from 1994): small model `dy2 = a`, large model
+`dy2 = a + b * surprise`; one-sided Clark-West test; supported if p < 0.05. **Void rule:** the same test on
+the previous trading day's yield change must not be significant (leakage check).
+
+**Study 2** adds FRASER and BIS speeches of the presidents of the 12 regional Federal Reserve Banks
+(within their tenure years; FRASER preferred on duplicates; speeches duplicating a Board speech dropped) and
+re-scores every document with classifiers trained on all eligible labels.
+
+---
+
+## 8. Exploratory analyses
+
+Labelled exploratory because they were chosen after earlier results were known:
+
+- **Clark-West for nested models** (linear S vs S+N): p = 0.021 (monthly) and 0.001 (per meeting) with the Plan 1 classifier; p = 0.086 and 0.119 with the Study 2 classifier.
+- **Look-ahead comparison:** ModernBERT-base fine-tuned on all labels at once (deliberate look-ahead). Its pipeline looked significant (monthly DM p = 0.043; event study p = 0.048), but the direct test of ModernBERT against ChronoBERT was not significant (p = 0.055, 0.40, 0.136), and the two pipelines differ in at least four ways (model, label dating, label count, training-scoring overlap).
+- **Market benchmark:** Treasury-bill yield plus a training-window spread (3-month and 4-week bills). Descriptive.
+- **Feature ablation:** S plus each text group, and S+N minus each group (12 unadjusted comparisons).
+- **Linear vs deep models:** linear S+N beats LSTM, GRU, TFT and the hybrid with one-sided DM p < 0.001 on both tasks; without text, linear vs TFT on the monthly task is p = 0.14.
+- **TFT diagnostic:** early stopping kept the untrained weights in 21-25% of TFT refits and 32-45% of hybrid refits.
+
+---
+
+## 9. Statistical tests
+
+| Test | Use | Reference |
+|---|---|---|
+| Diebold-Mariano with the Harvey-Leybourne-Newbold small-sample correction, one-sided, horizon 1 | squared-error comparisons (H1, H2a) | Diebold and Mariano (1995); Harvey, Leybourne and Newbold (1997) |
+| Exact McNemar test on discordant pairs, one-sided | correct cut / hold / hike classes | McNemar (1947) |
+| Clark-West adjusted MSPE test | nested-model comparisons (event studies; exploratory forecasting test) | Clark and West (2007); Clark and McCracken (2001) |
+| Holm step-down adjustment | the H2 family of secondary tests | Holm (1979) |
+| OLS with Newey-West (HAC, 5 lags) standard errors | full-sample event-study slope (secondary) | Newey and West (1987) |
+
+H1 required all three Plan 1 tests at one-sided p < 0.05, and was void if the placebo beat S at p < 0.05 or
+the shuffled-label control beat the random walk at p < 0.01.
+
+---
+
+## 10. Pre-registration and research integrity
+
+- **Pre-registration chain.** Before each study, the hypotheses, data, models, tests and pass marks were committed and tagged: `prereg` (Plan 1), `prereg-h2a` (Plan 2), `prereg-text` (Plan 5), `prereg-study2` (Study 2). See `PREREG.md`, `PREREG_H2A.md`, `PREREG_TEXT.md`, `PREREG_STUDY2.md`.
+- **Deviations.** Every change after a tag is listed in [`DEVIATIONS.md`](DEVIATIONS.md) (for example the one-hour rule outcome and the post-results report additions).
+- **Leakage controls.** Placebo and shuffled-label controls (Plan 1), day-before void rules (event studies), perturbation unit tests for every walk-forward engine (changing future targets must not change past forecasts).
+- **Reproducibility.** Data files are hashed (`results/data_hashes.txt`); the environment is pinned (`results/pip_freeze.txt`); an independent re-run reproduced the Plan 1 forecasts to 8.9e-16, and the GPU re-run of the TFT and hybrid forecasts was bit-exact.
+- **Review.** Every task was implemented test-first and reviewed; each study had a final independent code review.
+- **Limitation.** The tags are local git metadata; a public deposit (for example OSF) would make the pre-registration timing independently verifiable.
+
+---
+
+## 11. Results
+
+**Monthly task (308 months), RMSE in percentage points:**
+
+| Model | Without text | With text |
+|---|---|---|
+| No change | 0.181 | - |
+| Inertial Taylor rule | 0.187 | - |
+| Linear | 0.180 | **0.166** |
+| Linear + market rates | 0.131 | 0.133 |
+| TFT | 0.193 | 0.196 |
+| Hybrid (linear + TFT) | 0.203 | 0.181 |
+| LSTM (paper settings) | 0.439 | 0.420 |
+| GRU (paper settings) | 0.507 | 0.447 |
+
+**Per-meeting task (212 meetings):**
+
+| Model | RMSE | Correct cut / hold / hike |
+|---|---|---|
+| Always hold | 0.241 | 66.0% |
+| Linear, S | 0.205 | 67.9% |
+| Linear, S+N | 0.199 | 69.8% |
+| Linear, S+M | 0.132 | 86.8% |
+| Linear, S+M+N | 0.132 | 91.0% |
+| TFT, S | 0.248 | 55.2% |
+| Meeting LSTM, S | 0.898 | 32.1% |
+
+**The paper's window (Jan 2016 - Apr 2025, 112 months):**
+
+| Model | RMSE | MAE |
+|---|---|---|
+| Chan-Lau et al. LSTM (published) | 0.238 | 0.150 |
+| Chan-Lau et al. GRU (published) | 0.271 | 0.133 |
+| Chan-Lau et al. LLM (published; look-ahead acknowledged) | 0.176 | 0.148 |
+| No change | 0.193 | 0.099 |
+| Linear, S+N | 0.196 | 0.121 |
+| Linear, S+M | 0.144 | 0.095 |
+
+**Frozen models (monthly RMSE):** no frozen model beats no change; the linear S+N model rises from 0.221
+(updated) to 0.347 (frozen after 2020).
+
+**Event studies:** H5 Clark-West p = 0.129 (slope +3.4 bp per unit, HAC p = 0.056); H6 p = 0.369; regional
+speeches alone p = 0.716.
+
+**Interpretation.** Fed text tends to improve forecasts a little (6 of 9 model-task pairs), with suggestive but
+not conclusive evidence; the gain is not robust to the text classifier and is not confirmed by larger event
+studies. Simple linear models significantly outperform standard deep-learning models on samples of this size,
+and market interest rates already contain most of the information in Fed communication.
+
+---
+
+## 12. Reproducing the study
+
+**Environment.** Python 3.13 with CUDA PyTorch, transformers, pandas 3.0, numpy, scikit-learn, statsmodels,
+scipy, BeautifulSoup, lxml, pypdf, pysentiment2, tabulate, pytest. Exact versions: `results/pip_freeze.txt`.
+GPU used: RTX 2060 6 GB (stance training needs about 12.5 GB of system RAM).
+
+**Keys** (never committed; stored under `<data root>/secrets/`):
+- `fred_api_key.txt`: free FRED API key (https://fred.stlouisfed.org/docs/api/api_key.html).
+- `fraser_api_key.txt`: free FRASER API key, requested with `curl --data '{"email": "...", "description": "..."}' https://fraser.stlouisfed.org/api/api_key` (Study 2 only).
+
+**Run order** (from the repository root, `PYTHONPATH=src`; data root `D:/fed_news` or `FED_NEWS_DATA`):
+
+```bash
+python -m pytest -q                                  # 222 offline tests
+# Plan 1
+python -m fed_news.meetings                          # meeting set
+python -m fed_news.corpus                            # Fed text corpus
+python -m fed_news.panel                             # T1 / T2 panels (downloads ALFRED, market, indices)
+python -m fed_news.stance                            # per-year ChronoBERT classifiers (GPU)
+python -m fed_news.text_features                     # attach the news features
+python -m fed_news.run_models                        # model ladder
+python -m fed_news.evaluate                          # RESULTS.md
+# Plan 2
+python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda
+python -m fed_news.evaluate_h2a                      # RESULTS_H2A.md
+python -m fed_news.frozen --device cuda              # RESULTS_FROZEN.md
+python -m fed_news.clark_west                        # exploratory Clark-West
+# Plan 5
+python -m fed_news.event_study
+python -m fed_news.market_bench
+python -m fed_news.ablation
+python -m fed_news.naive_stance --score --compare    # GPU
+python -m fed_news.evaluate_text                     # RESULTS_TEXT.md
+# Study 2
+python -m fed_news.regional_corpus                   # FRASER + BIS speeches (about 2 hours, rate-limited)
+python -m fed_news.stance2                           # GPU, about 13 hours on an RTX 2060
+python -m fed_news.study2
+python -m fed_news.study2_frozen
+python -m fed_news.evaluate_study2                   # RESULTS_STUDY2.md
+```
+
+Raw data are not in the repository (several hundred MB, partly third-party text). All forecasts, metrics and
+test tables are in `results/`, so every reported number can be checked without re-running the models.
+
+---
+
+## 13. Limitations
+
+- The stance classifier is about 65% accurate on held-out sentences, and results change when it is retrained with 25% more labels.
+- 308 months and 212 meetings give low statistical power for gains of the size observed (a few percent of RMSE).
+- Release dates carry no time of day, so late releases are matched to yields quoted before them (conservative event tests).
+- FRASER lacks Daly, Kashkari, Schmid and Musalem and thins after 2023; three statistics lack first-release data before 2011-2012.
+- The paper LSTM and GRU were refit every 3 months under the one-hour rule, so our replication is not exact.
+- One country and one family of language models.
+
+---
+
+## 14. References
+
+- Baker, S. R., Bloom, N. and Davis, S. J. (2016). Measuring economic policy uncertainty. *Quarterly Journal of Economics* 131(4), 1593-1636.
+- Bank for International Settlements. Central bankers' speeches. https://www.bis.org/cbspeeches/
+- Caldara, D. and Iacoviello, M. (2022). Measuring geopolitical risk. *American Economic Review* 112(4), 1194-1225.
+- Chan-Lau, J. A., Quach, T. L. and Shi, A. R. (2025). Forecasting Federal Funds Rates with AI: LSTM, GRU, and Large Language Model Approaches. AMRO Working Paper WP/25-10. https://amro-asia.org/wp-content/uploads/2025/09/AMRO_WP_25_10_FedAI_model.pdf
+- Cho, K., van Merrienboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H. and Bengio, Y. (2014). Learning phrase representations using RNN encoder-decoder for statistical machine translation. *EMNLP 2014*.
+- Clark, T. E. and McCracken, M. W. (2001). Tests of equal forecast accuracy and encompassing for nested models. *Journal of Econometrics* 105(1), 85-110.
+- Clark, T. E. and West, K. D. (2007). Approximately normal tests for equal predictive accuracy in nested models. *Journal of Econometrics* 138(1), 291-311.
+- Croushore, D. and Stark, T. (2001). A real-time data set for macroeconomists. *Journal of Econometrics* 105(1), 111-130.
+- Diebold, F. X. and Mariano, R. S. (1995). Comparing predictive accuracy. *Journal of Business and Economic Statistics* 13(3), 253-263.
+- Eliseev, A. and Seleznev, S. (2026). Fake date tests: can we trust in-sample accuracy of LLMs in macroeconomic forecasting? arXiv:2601.07992.
+- Federal Reserve Bank of St. Louis. FRED, ALFRED and FRASER. https://fred.stlouisfed.org, https://alfred.stlouisfed.org, https://fraser.stlouisfed.org
+- Gurkaynak, R. S., Sack, B. and Swanson, E. T. (2007). Market-based measures of monetary policy expectations. *Journal of Business and Economic Statistics* 25(2), 201-212.
+- Harvey, D., Leybourne, S. and Newbold, P. (1997). Testing the equality of prediction mean squared errors. *International Journal of Forecasting* 13(2), 281-291.
+- He, S., Lv, L., Manela, A. and Wu, J. (2025). Chronologically consistent large language models. arXiv:2502.21206; *Journal of Financial Economics* (2026).
+- Hochreiter, S. and Schmidhuber, J. (1997). Long short-term memory. *Neural Computation* 9(8), 1735-1780.
+- Holm, S. (1979). A simple sequentially rejective multiple test procedure. *Scandinavian Journal of Statistics* 6(2), 65-70.
+- Kanganis, A. and Keith, K. A. (2025). Op-Fed: opinion, stance, and monetary policy annotations on FOMC transcripts using active learning. arXiv:2509.13539.
+- Lim, B., Arik, S. O., Loeff, N. and Pfister, T. (2021). Temporal fusion transformers for interpretable multi-horizon time series forecasting. *International Journal of Forecasting* 37(4), 1748-1764.
+- Loughran, T. and McDonald, B. (2011). When is a liability not a liability? Textual analysis, dictionaries, and 10-Ks. *Journal of Finance* 66(1), 35-65.
+- McNemar, Q. (1947). Note on the sampling error of the difference between correlated proportions or percentages. *Psychometrika* 12(2), 153-157.
+- Meese, R. A. and Rogoff, K. (1983). Empirical exchange rate models of the seventies: do they fit out of sample? *Journal of International Economics* 14(1-2), 3-24.
+- Newey, W. K. and West, K. D. (1987). A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix. *Econometrica* 55(3), 703-708.
+- Shah, A., Paturi, S. and Chava, S. (2023). Trillion Dollar Words: a new financial dataset, task and market analysis. *ACL 2023*.
+- Shapiro, A. H., Sudhof, M. and Wilson, D. J. (2022). Measuring news sentiment. *Journal of Econometrics* 228(2), 221-243.
+- Taylor, J. B. (1993). Discretion versus policy rules in practice. *Carnegie-Rochester Conference Series on Public Policy* 39, 195-214.
+- Warner, B. et al. (2024). ModernBERT: smarter, better, faster, longer. arXiv:2412.13663.
+
+Volume and page details should be checked against the publishers' records before citing.
