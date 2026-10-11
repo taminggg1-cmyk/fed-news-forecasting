@@ -1,0 +1,117 @@
+import subprocess
+
+import numpy as np
+import pandas as pd
+
+from fed_news import decision_text as dt
+from fed_news.stance import vintage_year
+
+
+def meetings():
+    idx = pd.to_datetime(["2000-03-21", "2000-06-28", "2001-01-31"])
+    return pd.DataFrame({"y_class": [2, 1, 0]}, index=pd.Index(idx, name="date"))
+
+
+def test_label_is_first_meeting_strictly_after_release():
+    docs = pd.DataFrame({"doc_id": ["a", "b", "c", "d"],
+                         "release": pd.to_datetime(["2000-01-05", "2000-03-21", "2000-06-27", "2001-02-01"])})
+    out = dt.next_decision(docs, meetings())
+    assert out["label"].tolist() == [2, 1, 1, -1]          # b is released on a meeting day: next meeting's label
+    assert out["label_date"].iloc[1] == pd.Timestamp("2000-06-28")
+    assert pd.isna(out["label_date"].iloc[3])
+
+
+def test_training_docs_use_only_labels_known_before_the_year():
+    docs = pd.DataFrame({"doc_id": list("abc"),
+                         "release": pd.to_datetime(["2000-01-05", "2000-12-20", "2000-12-30"])})
+    tr = dt.training_docs(dt.next_decision(docs, meetings()), 2001)
+    assert tr["doc_id"].tolist() == ["a"]                  # b and c are labelled by the 2001-01-31 meeting
+
+
+def test_enough_needs_100_docs_and_10_per_class():
+    ok = pd.DataFrame({"label": [0] * 10 + [1] * 80 + [2] * 10})
+    assert dt.enough(ok)
+    assert not dt.enough(ok.iloc[1:])                      # 99 documents and 9 cuts
+    assert not dt.enough(pd.DataFrame({"label": [1] * 95 + [2] * 15}))
+
+
+def test_vintage_rule():
+    assert [vintage_year(y) for y in (1996, 2000, 2001, 2025, 2026)] == [1999, 1999, 2000, 2024, 2024]
+
+
+def separable(n=300, seed=0):
+    rng = np.random.default_rng(seed)
+    y = rng.integers(0, 3, n)
+    X = rng.normal(size=(n, 5))
+    X[:, 0] += 3 * (y - 1)
+    return X, y
+
+
+def test_fit_probe_learns_signal_and_picks_c_from_grid():
+    X, y = separable()
+    model, mu, sd, c = dt.fit_probe(X, y)
+    assert c in dt.C_GRID
+    assert np.corrcoef(dt.doc_scores(model, mu, sd, X), y)[0, 1] > 0.8
+
+
+def test_fit_probe_falls_back_when_no_fold_has_all_classes():
+    y = np.array([1] * 90 + [0] * 10 + [2] * 10)           # every expanding training fold lacks the hikes
+    X = np.random.default_rng(1).normal(size=(len(y), 3))
+    _, _, _, c = dt.fit_probe(X, y)
+    assert c == dt.FALLBACK_C
+
+
+def world(seed=0, n=1200):
+    rng = np.random.default_rng(seed)
+    mdates = pd.date_range("1995-01-15", "2002-12-15", freq="45D")
+    meet = pd.DataFrame({"y_class": np.resize([0, 1, 2, 1], len(mdates))},           # every class every year
+                        index=pd.Index(mdates, name="date"))
+    lo, hi = pd.Timestamp("1995-01-01").value // 10 ** 9, pd.Timestamp("2002-12-31").value // 10 ** 9
+    release = pd.to_datetime(rng.integers(lo, hi, n), unit="s").normalize()
+    docs = pd.DataFrame({"doc_id": [f"d{i}" for i in range(n)], "type": "speech", "release": release,
+                         "source": "corpus"})
+    table = {d: rng.normal(size=4) for d in docs["doc_id"]}
+    return docs, meet, (lambda v, ids: np.stack([table[i] for i in ids]))
+
+
+def test_score_all_scores_only_years_with_enough_labels():
+    docs, meet, emb = world()
+    scored, quality = dt.score_all(dt.next_decision(docs, meet), emb)
+    assert scored.loc[scored["release"].dt.year == 1995, "stance"].isna().all()
+    assert scored.loc[scored["release"].dt.year >= 1996, "stance"].notna().all()
+    assert scored["stance"].dropna().between(-1, 1).all()
+    assert {"year", "n_train", "classifier", "C", "accuracy", "majority_accuracy"} <= set(quality.columns)
+
+
+def test_future_labels_do_not_change_past_scores():
+    docs, meet, emb = world()
+    a, _ = dt.score_all(dt.next_decision(docs, meet), emb)
+    meet2 = meet.copy()
+    later = meet2.index >= pd.Timestamp("2000-01-01")
+    meet2.loc[later, "y_class"] = (meet2.loc[later, "y_class"] + 1) % 3
+    b, _ = dt.score_all(dt.next_decision(docs, meet2), emb)
+    early = (a["release"].dt.year < 2000).to_numpy()
+    np.testing.assert_allclose(a["stance"].to_numpy()[early], b["stance"].to_numpy()[early])
+
+
+def test_shuffled_labels_change_scores_but_not_coverage():
+    docs, meet, emb = world()
+    lab = dt.next_decision(docs, meet)
+    real, _ = dt.score_all(lab, emb)
+    shuf, _ = dt.score_all(lab, emb, shuffle_seed=0)
+    assert (real["stance"].isna() == shuf["stance"].isna()).all()
+    assert not np.allclose(real["stance"].dropna(), shuf["stance"].dropna())
+
+
+def git(repo, *args):
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def test_gate_needs_tag_and_osf_url(tmp_path):
+    git(tmp_path, "init", "-q")
+    git(tmp_path, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x")
+    assert "tag" in dt.gate(tmp_path)
+    git(tmp_path, "tag", dt.TAG)
+    assert "OSF" in dt.gate(tmp_path)
+    (tmp_path / dt.OSF_NAME).write_text("https://osf.io/abcd1/\n", encoding="utf-8")
+    assert dt.gate(tmp_path) is None
