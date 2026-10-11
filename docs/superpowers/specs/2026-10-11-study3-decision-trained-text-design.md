@@ -71,7 +71,7 @@ document ids, texts and model name.
 max_iter 2000), embeddings standardised with the training documents' mean and standard deviation. The inverse
 penalty C is chosen from {0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1} by 5-fold expanding-window cross-validation
 over training documents sorted by label meeting date (`models.expanding_folds`), maximising mean
-log-likelihood.
+log-likelihood, using only folds whose training part has all three classes (C = 0.01 if none does).
 
 **Meeting signal and forecasting.** The signal is written into the `n_stance` column of a copy of the T2 panel
 with `naive_stance.naive_panel("t2", docs)` (as in Study 2), and the models use
