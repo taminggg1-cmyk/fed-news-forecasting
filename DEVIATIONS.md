@@ -75,3 +75,8 @@ A second external review (code and saved results) led to the disclosures below. 
   (Haiku 5.5 was released on 2026-10-07).
 - Archived copies of the daily news-index files could not be retrieved (archive.org offline on 2026-10-12);
   their revision behaviour is unverified.
+- Found 2026-10-12 while writing the methods note: the Plan 2 "paper LSTM" (240 units, 1 layer, 300 epochs;
+  PREREG_H2A.md) does not match the LSTM settings in the AMRO WP/25-10 version read on 2026-10-12 (109 units,
+  two layers, no dropout, learning rate 1e-4, 644 epochs). The GRU (188 units, 1 layer, 2e-4, 449 epochs)
+  matches. The source of the 240/300 setting is not recorded; the Plan 2 LSTM rows should not be described as
+  the paper's LSTM settings until this is resolved.
