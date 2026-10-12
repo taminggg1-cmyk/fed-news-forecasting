@@ -22,3 +22,11 @@ def test_parse_labels_rejects_missing_or_unknown_labels():
         pl.parse_labels('{"1": "H"}', 2)
     with pytest.raises(ValueError):
         pl.parse_labels('{"1": "X"}', 1)
+
+
+def test_attempt_two_sample_is_fresh():
+    import pandas as pd
+    labels = pd.DataFrame({"sentence": [f"s{i}" for i in range(2000)], "label": 0, "year": 2005})
+    first, second = pl.pilot_sample(labels, 1), pl.pilot_sample(labels, 2)
+    assert len(first) == len(second) == pl.N_PILOT
+    assert not set(first["sentence"]) & set(second["sentence"])

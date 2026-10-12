@@ -58,14 +58,30 @@ def _client():
     return anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
 
 
-def _ask(client, sentences: list[str], usage: dict) -> list[int] | None:
-    for _ in range(2):  # one retry on a malformed or refused answer
-        r = client.messages.create(model=MODEL, max_tokens=1024, system=SYSTEM,
-                                   thinking={"type": "disabled"}, output_config={"effort": "low"},
+ATTEMPTS = {  # design doc: attempt 1 (no thinking, effort low); attempt 2 (adaptive thinking, effort medium)
+    1: {"thinking": {"type": "disabled"}, "output_config": {"effort": "low"}, "max_tokens": 1024},
+    2: {"output_config": {"effort": "medium"}, "max_tokens": 8000},
+}
+TOKEN_CAP = 95_000
+
+
+def pilot_sample(labels, attempt: int):
+    """Attempt 1: 300 pre-2012 labels (seed 0). Attempt 2: 300 others (seed 1), disjoint from attempt 1."""
+    pool = labels[labels["year"] < SPLIT_YEAR]
+    first = pool.sample(N_PILOT, random_state=SEED)
+    pick = first if attempt == 1 else pool.drop(first.index).sample(N_PILOT, random_state=attempt - 1)
+    return pick.reset_index(drop=True)
+
+
+def _ask(client, sentences: list[str], usage: dict, settings: dict) -> list[int] | None:
+    for _ in range(2):  # one retry on a malformed, cut-off or refused answer
+        if usage["input"] + usage["output"] >= TOKEN_CAP:
+            return None
+        r = client.messages.create(model=MODEL, system=SYSTEM, **settings,
                                    messages=[{"role": "user", "content": batch_prompt(sentences)}])
         usage["input"] += r.usage.input_tokens
         usage["output"] += r.usage.output_tokens
-        if r.stop_reason == "refusal":
+        if r.stop_reason in ("refusal", "max_tokens"):
             continue
         try:
             return parse_labels("".join(b.text for b in r.content if b.type == "text"), len(sentences))
@@ -74,21 +90,21 @@ def _ask(client, sentences: list[str], usage: dict) -> list[int] | None:
     return None
 
 
-def run_pilot() -> dict:
+def run_pilot(attempt: int = 1) -> dict:
     import pandas as pd
     from sklearn.metrics import confusion_matrix, recall_score
     from fed_news.labels import load_labels
     labels = load_labels()
-    pilot = labels[labels["year"] < SPLIT_YEAR].sample(N_PILOT, random_state=SEED).reset_index(drop=True)
+    pilot = pilot_sample(labels, attempt)
     client, usage, llm = _client(), {"input": 0, "output": 0}, []
     for s in range(0, len(pilot), BATCH):
         sents = pilot["sentence"].iloc[s:s + BATCH].tolist()
-        got = _ask(client, sents, usage)
+        got = _ask(client, sents, usage, ATTEMPTS[attempt])
         llm += got if got is not None else [-1] * len(sents)
         print(f"labelled {s + len(sents)} of {len(pilot)}; tokens so far {usage}", flush=True)
     human, llm = pilot["label"].to_numpy(int), np.array(llm)
     hd = (human < 2) & (llm >= 0) & (llm < 2)
-    res = {"model": MODEL, "n": int(len(human)), "n_unlabelled": int((llm < 0).sum()),
+    res = {"model": MODEL, "attempt": attempt, "settings": ATTEMPTS[attempt], "n": int(len(human)), "n_unlabelled": int((llm < 0).sum()),
            "agreement": float((llm == human).mean()),
            "recall_dovish_hawkish_neutral": recall_score(human, llm, labels=[0, 1, 2], average=None,
                                                          zero_division=0).round(3).tolist(),
@@ -97,11 +113,14 @@ def run_pilot() -> dict:
            "tokens": usage}
     res["passed"] = bool(res["agreement"] >= PASS_AGREEMENT)
     OUT.mkdir(parents=True, exist_ok=True)
-    pilot.assign(llm=llm)[["sentence", "label", "llm", "year", "source"]].to_csv(OUT / "pilot_labels.csv", index=False)
-    (OUT / "pilot.json").write_text(json.dumps(res, indent=2))
+    tag = "" if attempt == 1 else str(attempt)
+    pilot.assign(llm=llm)[["sentence", "label", "llm", "year", "source"]].to_csv(OUT / f"pilot{tag}_labels.csv",
+                                                                                  index=False)
+    (OUT / f"pilot{tag}.json").write_text(json.dumps(res, indent=2))
     print(json.dumps(res, indent=2), flush=True)
     return res
 
 
 if __name__ == "__main__":
-    run_pilot()
+    import sys
+    run_pilot(int(sys.argv[1]) if len(sys.argv) > 1 else 1)

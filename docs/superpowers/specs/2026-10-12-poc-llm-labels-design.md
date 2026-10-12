@@ -32,3 +32,12 @@ measures agreement with humans, not the absence of hindsight. 300 sentences give
 
 About 17,000 input and 2,000 output tokens (well under one US cent at $0.10 / $0.50 per million). API key read
 from `ANTHROPIC_API_KEY` or `<data>/secrets/anthropic_api_key.txt` (never committed).
+
+## Attempt 2 (2026-10-12, after attempt 1 failed at 0.673; fixed before any attempt 2 call)
+
+One change, at the user's request: Haiku 5.5 at effort medium with adaptive thinking on (thinking omitted from
+the request, max_tokens 8,000); prompt, batch size and answer format unchanged. Fresh sample: 300 different
+pre-2012 human-labelled sentences (seed 1, excluding attempt 1's sample), so attempt 1's result cannot steer it.
+Same pass rule (agreement at least 0.70). A batch cut off by max_tokens is retried once. The run stops before
+any request once 95,000 tokens are used (user budget); unlabelled sentences count as wrong. Attempt 1's failure
+stays on record.
