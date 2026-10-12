@@ -95,6 +95,14 @@ def embed_chronobert(sentences: list[str], layers=BERT_LAYERS, batch: int = 32) 
     return {layer: np.concatenate(v) for layer, v in out.items()}
 
 
+def trim_rotary(model, n: int) -> None:
+    """The authors' rotary tables cover 65,536 positions per layer (about 1.7 GB in float32 on the GPU);
+    keep the first n, which leaves every sequence of at most n tokens unchanged."""
+    for block in model.blocks:
+        rot = block.attn.rotary
+        rot.cos, rot.sin = rot.cos[:n].contiguous(), rot.sin[:n].contiguous()
+
+
 def load_chronogpt():
     from huggingface_hub import hf_hub_download
     from fed_news.chronogpt import ChronoGPT
@@ -109,6 +117,7 @@ def load_chronogpt():
     finally:
         torch.set_default_dtype(previous)
     model.load_state_dict(state)
+    trim_rotary(model, MAX_TOKENS)
     return model.cuda().eval()
 
 
@@ -127,6 +136,8 @@ def embed_chronogpt(sentences: list[str], layers=GPT_LAYERS, batch: int = 8) -> 
             _, layer_outputs = model(x)  # causal: right padding does not change the real tokens' states
             for layer in layers:
                 out[layer].append(mean_pool(layer_outputs[layer - 1], mask))
+            if (s // batch) % 50 == 0:
+                print(f"chronogpt embedded {s + len(ids)} of {len(sentences)}", flush=True)
     del model
     gc.collect()
     torch.cuda.empty_cache()

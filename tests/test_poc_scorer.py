@@ -42,3 +42,18 @@ def test_pass_rule():
     assert pc.passed(0.76, 0.70) is True
     assert pc.passed(0.76, 0.72) is False
     assert pc.passed(0.74, 0.60) is False
+
+
+def test_trim_rotary_keeps_outputs_for_short_inputs_and_shrinks_tables():
+    from fed_news.chronogpt import ChronoGPT
+    torch.manual_seed(0)
+    model = ChronoGPT(vocab_size=50, num_layers=4, num_heads=2, model_dim=16)
+    with torch.no_grad():
+        for p in model.parameters():
+            p.normal_(0, 0.2)
+    x = torch.randint(0, 50, (2, 7))
+    before = [h.float() for h in model(x)[1]]
+    pc.trim_rotary(model, 10)
+    assert all(b.attn.rotary.cos.shape[0] == 10 and b.attn.rotary.sin.shape[0] == 10 for b in model.blocks)
+    after = [h.float() for h in model(x)[1]]
+    assert all(torch.equal(a, b) for a, b in zip(before, after))
