@@ -94,3 +94,20 @@ period was used in earlier studies with other features, so it is not untouched d
 ## 8. Compute
 
 CPU only. Feature building and each stage take minutes; the stage 1 labelling takes the user about 45 minutes.
+
+## 9. Amendment before stage 1 scoring (2026-10-12)
+
+Made after the first dissent-check draw showed parser errors and before any human label or forecast exists:
+- Older statements name dissenters and then explain in a separate sentence ("... Robert D. McTeer, Jr. Governor
+  Gramlich and President McTeer preferred a reduction ..."). The names end at " who " or at a sentence break
+  followed by a title (Governor, President, Mr., Ms., Chairman, Chair); the rest of the clause is the reason.
+- A preference stated with a size in the same direction as the action is compared with the action's size: a
+  smaller move than the committee's is the opposite direction (a 1/4-point cut preferred to a 1/2-point cut is
+  tighter), a larger one the same direction.
+- "Reduction in (monetary) accommodation", "less/removal/withdrawal of accommodation" count as tighter and take
+  precedence over the easier cues.
+Dissent check result: the parsed count and the rule's direction are correct for all 20 sampled statements.
+The rule leaves direction at 0 when the text gives no explicit rate or accommodation cue; in the sample that
+happens for dissents that read hawkish (Hoenig 2010, Fisher/Kocherlakota/Plosser Aug 2011, Lacker 2012 twice,
+Plosser Dec 2014) and dovish (Rosengren Dec 2013, Kocherlakota Dec 2014, Waller Mar 2025), so
+`x_dissent_dir` is a partial measure of dissent direction.
