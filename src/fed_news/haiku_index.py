@@ -19,6 +19,7 @@ OUT_PATH = config.DATA / "doc_stance_haiku.pkl"
 WORK = config.DATA / "study4"
 RESULTS = config.RESULTS / "study4"
 BATCH, SEED = 25, 0
+PER_BATCH = 4000
 TOKEN_LIMIT, OUT_PER_SENTENCE, N_COUNT = 25_000_000, 8, 200  # design amendment 7.1: 20M raised by the user
 SCORE = {0: -1.0, 1: 1.0, 2: 0.0}  # poc_llm_labels.CODES: dovish 0, hawkish 1, neutral 2
 
@@ -88,28 +89,32 @@ def project(client) -> dict:
     return res
 
 
-def _submit(client, masked, parts, ks) -> str:
-    reqs = [{"custom_id": f"c{k}", "params": request_params([masked[i] for i in parts[k]])} for k in ks]
-    return client.messages.batches.create(requests=reqs).id
+def _submit(client, masked, parts, ks, state: dict, key: str) -> None:
+    """Send requests in batches of PER_BATCH, saving each batch id at once so a crash never resends a batch."""
+    ks = list(ks)
+    ids = state.setdefault(key, [])
+    for s in range(len(ids) * PER_BATCH, len(ks), PER_BATCH):
+        reqs = [{"custom_id": f"c{k}", "params": request_params([masked[i] for i in parts[k]])}
+                for k in ks[s:s + PER_BATCH]]
+        ids.append(client.messages.batches.create(requests=reqs).id)
+        _save_state(state)
+        print(f"{key}: batch {ids[-1]} with {len(reqs)} requests", flush=True)
 
 
 def submit(client) -> None:
     proj = json.loads((RESULTS / "token_projection.json").read_text())
     if proj["projected_total_tokens"] > TOKEN_LIMIT:
         raise SystemExit(f"projected {proj['projected_total_tokens']} tokens exceeds {TOKEN_LIMIT}; ask the user")
-    state = _state()
-    if "first" in state:
-        raise SystemExit(f"already submitted: {state['first']}")
     _, _, masked = sentences()
     parts = chunks(len(masked))
-    state["first"] = _submit(client, masked, parts, range(len(parts)))
-    _save_state(state)
-    print("submitted", state["first"], len(parts), "requests", flush=True)
+    state = _state()
+    _submit(client, masked, parts, range(len(parts)), state, "first")
+    print("submitted", state["first"], flush=True)
 
 
-def _results(client, batch_id: str, n: int, answers: dict, usage: dict, parts) -> list[int]:
+def _results(client, batch_ids: list[str], answers: dict, usage: dict, parts) -> list[int]:
     failed = []
-    for r in client.messages.batches.results(batch_id):
+    for r in (r for b in batch_ids for r in client.messages.batches.results(b)):
         k = int(r.custom_id[1:])
         if r.result.type != "succeeded":
             failed.append(k)
@@ -130,18 +135,17 @@ def collect(client) -> None:
     state = _state()
     docs, sent, masked = sentences()
     parts = chunks(len(masked))
-    for key in ("first", "retry"):
-        if key in state and client.messages.batches.retrieve(state[key]).processing_status != "ended":
-            raise SystemExit(f"batch {state[key]} still processing")
+    for b in state.get("first", []) + state.get("retry", []):
+        if client.messages.batches.retrieve(b).processing_status != "ended":
+            raise SystemExit(f"batch {b} still processing")
     answers, usage = {}, {"input": 0, "output": 0}
-    failed = _results(client, state["first"], len(parts), answers, usage, parts)
+    failed = _results(client, state["first"], answers, usage, parts)
     if failed and "retry" not in state:
-        state["retry"] = _submit(client, masked, parts, failed)
         state["n_failed_first"] = len(failed)
-        _save_state(state)
-        raise SystemExit(f"{len(failed)} requests failed; resent as {state['retry']}, run --collect again")
+        _submit(client, masked, parts, failed, state, "retry")
+        raise SystemExit(f"{len(failed)} requests failed; resent, run collect again when done")
     if "retry" in state:
-        _results(client, state["retry"], len(parts), answers, usage, parts)
+        _results(client, state["retry"], answers, usage, parts)
     codes = assemble(len(masked), parts, answers)
     sent.assign(masked=masked, code=codes).to_pickle(WORK / "sentence_labels.pkl")
     out = doc_stance(docs, sent, codes)
