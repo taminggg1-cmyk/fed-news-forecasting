@@ -63,3 +63,15 @@ A second external review (code and saved results) led to the disclosures below. 
 - Standardisation inside the training window: features are standardised on all training rows of a refit, including the rows that are later held out inside that window (the last 20% used for TFT and hybrid early stopping, the hybrid's out-of-fold residual folds, and the expanding folds that choose the ridge and ordered-logit penalties of the Plan 1 primary model and the hybrid anchor). Neural targets are likewise standardised on all fit rows, early-stopping rows included. Test rows never enter. The inner validation is therefore slightly optimistic, which can affect only the kept epoch and the chosen penalty, and it applies identically to S and S+N.
 - January 2004: the T1 panel has no row for 2004-01 (s_pce_yoy and s_pce_core_yoy are missing in the real-time data), so it is neither trained on nor forecast (308 test months, not 309). Sequence models index by row, so the 11 test sequences ending 2004-02 to 2004-12 (lookback 12) span 13 calendar months, and refit schedules counted in rows shift by one month (the T1 TFT refit dated 2004-02-01 instead of 2004-01-01). Identical for S and S+N.
 - Model sizes against sample size (context for the neural results): at the first test forecast the paper LSTM (253,681 parameters with S+N) trains on 58 monthly sequences and the meeting LSTM on 45 meeting sequences, for a fixed 300 epochs without dropout or early stopping. These are the paper's LSTM settings (PREREG_H2A.md; the meeting LSTM reuses them), not tuned for this sample.
+
+### Study 4 notes (2026-10-12)
+
+- Amendment 7.1: the Haiku token projection (23,980,280) exceeded the 20M limit; nothing was sent until the user
+  allowed the full corpus; the limit became 25M. Actual use 23,395,731 tokens.
+- Design section 8 (sensitivity checks) was added after the primary result, at an external reviewer's request,
+  and recorded before those runs: real-time-data reruns, a news-column ablation, class counts, HAC and
+  block-bootstrap versions of the primary test, two-sided McNemar. All exploratory; RESULTS_STUDY4.md.
+- The July and September 2026 meetings are a retrospective post-cutoff evaluation, not live forecasts
+  (Haiku 5.5 was released on 2026-10-07).
+- Archived copies of the daily news-index files could not be retrieved (archive.org offline on 2026-10-12);
+  their revision behaviour is unverified.
