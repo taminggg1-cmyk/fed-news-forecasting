@@ -1,0 +1,23 @@
+{
+  "model": "claude-haiku-5-5",
+  "n_statements": 229,
+  "exam0_recall_accuracy": 0.8777292576419214,
+  "exam0_base_rate_most_common": 0.6462882096069869,
+  "exam0_p_vs_base": 1.684936816317162e-15,
+  "exam2_share_dated_within_1y": 0.8951965065502183,
+  "accuracy_haiku": 0.7729257641921398,
+  "accuracy_persistence": 0.777292576419214,
+  "haiku_right_persistence_wrong": 10,
+  "persistence_right_haiku_wrong": 11,
+  "p_mcnemar": 0.6681880950927734,
+  "n_dated": 205,
+  "accuracy_dated": 0.7707317073170732,
+  "accuracy_not_dated": 0.7916666666666666,
+  "p_fisher": 0.6764876941807765,
+  "date_dependence_flag": false,
+  "passed": true,
+  "tokens": {
+    "input": 313198,
+    "output": 4663
+  }
+}

@@ -141,3 +141,23 @@ Haiku 0.172, ChronoBERT 0.067. Haiku agrees with the human labels on 0.668 of se
 Reading: on the same masked text, Haiku's labels line up with what the Fed did next more than a leak-free model's
 scores do, beyond what the human reading explains. This is either better reading or hindsight, and the test
 cannot tell which. Under the design, any later Haiku-based forecast must carry this flag.
+
+## 7. Does Haiku remember what the Fed did next? (memory exam)
+
+Design: `docs/superpowers/specs/2026-10-12-poc-haiku-memory-design.md`. 229 decision-day statements, cut at the
+vote paragraph and masked; 313,198 input and 4,663 output tokens.
+
+| Exam | Result |
+|---|---|
+| 0. Recall from the date alone (descriptive) | 0.878 correct vs 0.646 always-hold (p < 1e-14): Haiku remembers decisions when told the date |
+| 2. Year of the masked statement within 1 year | 0.895: whole statements reveal their period despite masking |
+| 1. Next decision from the masked statement | Haiku 0.773 vs persistence 0.777 (right where persistence was wrong 10 times, the reverse 11; McNemar p = 0.67) |
+| 2. Accuracy when the statement is dated correctly vs not | 0.771 vs 0.792 (Fisher p = 0.68; no date-dependence flag; only 24 statements not dated) |
+
+**Verdict under the pre-set rule: passed ("no detectable memory" in next-decision prediction).** Haiku knows the
+history (exam 0) and can tell when a masked statement was written (exam 2), yet from the masked statement it
+predicts the next decision no better than the persistence rule, and no better when it dates the statement
+correctly. In this setup it behaves like a reader of the text, not a recaller of outcomes. Caveats: this holds
+for this prompt and these inputs; a prompt that asks Haiku to reason about the period, or richer inputs, could
+let memory in, so the leak tests must be repeated for any Haiku predictor. The sentence-level hindsight flag
+(section 6) stands alongside this result.
