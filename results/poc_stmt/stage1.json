@@ -1,0 +1,11 @@
+{
+  "label_source": "TDW/WCB human sentence labels (design section 10)",
+  "n_pairs_with_labels": 63,
+  "n_directional": 44,
+  "agreement": 0.6818181818181818,
+  "majority_share": 0.5,
+  "passed": false,
+  "dissent_checked": 20,
+  "dissent_all_correct": true,
+  "stage1_passed": false
+}
