@@ -173,3 +173,28 @@ ChronoBERT). Recorded before any placebo run.
 - Reading fixed now: a real-news gain counts as coming from the news content only if real news beats its own
   placebo at p < 0.05 and the placebo does not beat no news at p < 0.05. Otherwise the gain is attributed to
   tuning and training noise. All of this is exploratory and does not change the section 4 verdict.
+
+## 11. Tuned monthly networks (T1) (exploratory, added after the T2 neural results)
+
+Requested by the user, to test whether the poor monthly LSTM/GRU results of Plan 2 came from the reference
+paper's settings. Recorded before any T1 tuning run.
+
+- Task T1 as in Plans 1-2: one row per month t, cutoff the first day of t, target the monthly federal funds
+  rate FEDFUNDS(t), forecast as the change from FEDFUNDS(t-1); class at +/-0.125. 378 rows (1995-03 to
+  2026-09); test months from 2001-01 (308); the paper's window 2016-01 to 2025-04 (112 months) reported
+  separately. A forecast at month t trains on rows up to t-2 (Plan 1-2 protocol); tuning at a point uses only
+  rows before the point minus one.
+- Inputs identical to Plan 2's T1 networks, so the comparison isolates the settings: S (the paper's Table 1
+  statistics, real-time with the documented ALFRED fallback). News arms add only the two stance columns:
+  S+C (ChronoBERT), S+H (Haiku); placebo-C and placebo-H shift the stance circularly by half the panel (189
+  rows). No daily news indices.
+- LSTM, GRU and TFT; the section 5 search space except lookback {3, 6, 12, 24} months; Optuna TPE seed 0,
+  30 trials, 4 expanding folds; tuning points the first test month of 2001, 2005, ..., 2025; refit every 12
+  months and at each tuning point; 8 seeds, seed-mean forecasts. (Plan 2 refit its LSTM/GRU every 3 months.)
+- Comparisons, one-sided DM-HLN on squared rate errors, with accuracy and McNemar counts:
+  (a) **settings question**: tuned S against Plan 2's paper-settings S forecasts of the same architecture on
+  the same months (for the TFT, Plan 2 used default sizes); (b) news against no news; (c) news against its
+  placebo, read as in section 10. Plan 1's random walk and linear ridge on S are reported for context, and the
+  paper's own numbers (revised data) alongside.
+- Reading fixed now for (a): "tuning explains the gap" for an architecture if tuned S beats paper-settings S
+  at p < 0.05 on the 308 test months; the 112-month paper window is reported but not used for the reading.
