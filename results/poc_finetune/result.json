@@ -1,0 +1,41 @@
+{
+  "split_year": 2012,
+  "vintage": 2011,
+  "n_train": 1722,
+  "chronobert": {
+    "n_test": 1352,
+    "accuracy": 0.5924556213017751,
+    "macro_f1": 0.5711168533339045,
+    "recall_dovish": 0.5114155251141552,
+    "recall_hawkish": 0.4265129682997118,
+    "recall_neutral": 0.7566137566137566,
+    "log_loss": 0.9927757978439331,
+    "sign_agreement_hd": 0.7477707006369426,
+    "seed_accuracy": [
+      0.621301775147929,
+      0.5606508875739645,
+      0.5591715976331361
+    ]
+  },
+  "chronogpt": {
+    "n_test": 1352,
+    "accuracy": 0.5813609467455622,
+    "macro_f1": 0.5608054430560178,
+    "recall_dovish": 0.5821917808219178,
+    "recall_hawkish": 0.3919308357348703,
+    "recall_neutral": 0.6966490299823633,
+    "log_loss": 0.9647548794746399,
+    "sign_agreement_hd": 0.7197452229299363,
+    "seed_accuracy": [
+      0.5539940828402367,
+      0.5606508875739645,
+      0.5539940828402367
+    ]
+  },
+  "mcnemar_gpt_vs_bert": {
+    "gpt_right_bert_wrong": 147,
+    "bert_right_gpt_wrong": 162,
+    "p_one_sided": 0.818632251178498
+  },
+  "passed": false
+}

@@ -66,8 +66,33 @@ Operational note: the authors' code precomputes rotary tables for 65,536 positio
 in float32); they were trimmed to the 256 positions used, which leaves every result unchanged (unit test) and
 made the run fit in GPU memory.
 
-## 3. Conclusion of the proofs of concept
+## 3. Fine-tuned ChronoGPT vs fine-tuned ChronoBERT
+
+Design: `docs/superpowers/specs/2026-10-12-poc-finetune-design.md`. Same split. ChronoBERT fine-tuned exactly as
+the pipeline does (`stance.train_and_score`); ChronoGPT's encoder half (26 blocks) fine-tuned with LoRA adapters
+(rank 16) and a linear head, base weights frozen in bfloat16. Three seeds each, probabilities averaged.
+
+**Result: not passed** (same bar: at least 0.75 and at least 0.05 above ChronoBERT).
+
+| Test labels 2012+ (3-seed ensembles) | Fine-tuned ChronoBERT | LoRA ChronoGPT |
+|---|---|---|
+| Accuracy (3 classes) | 0.592 | 0.581 |
+| Seed accuracies | 0.621, 0.561, 0.559 | 0.554, 0.561, 0.554 |
+| Macro-F1 | 0.571 | 0.561 |
+| Recall dovish / hawkish / neutral | 0.51 / 0.43 / 0.76 | 0.58 / 0.39 / 0.70 |
+| Log loss | 0.993 | 0.965 |
+| Hawkish-vs-dovish sign agreement | 0.748 | 0.720 |
+
+The two are level: McNemar finds ChronoGPT right where ChronoBERT was wrong 147 times and the reverse 162 times
+(one-sided p = 0.82). Fine-tuning lifts both models over their frozen versions (ChronoBERT 0.520 to 0.592,
+ChronoGPT 0.561 to 0.581), and on future years both land near 0.58-0.59 three-class accuracy (chance 0.33,
+always-neutral 0.42) and 0.72-0.75 hawkish-vs-dovish sign agreement.
+
+## 4. Conclusion of the proofs of concept
 
 Within these budgets, the text route is limited by how well a look-ahead-free model reads Fed sentences, not by
-how the scores are summarised. Neither the change-based features nor a larger chronologically consistent scorer
-cleared its pre-set bar, so no further forecasting run was made.
+how the scores are summarised: the change-based features failed their measurement check by one pair, and neither
+a larger chronologically consistent model (frozen or fine-tuned) nor fine-tuning lifted the scorer much above
+0.6 on later years. The human sentence labels are themselves noisy, which caps any scorer. No further forecasting
+run was made. Separately, the pre-registered results show that markets already carry most of what Fed text could
+add for the next decision, which a better scorer would not change.
