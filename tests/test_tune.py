@@ -50,10 +50,10 @@ def test_search_space_gives_valid_settings_for_each_architecture():
 
 
 def test_cv_score_never_reads_rows_at_or_after_the_tuning_point():
-    df = _df()
-    df.iloc[40:, :3] = np.nan  # anything after the point would turn the score into NaN
+    df = _df(90)
+    df.iloc[70:, :3] = np.nan  # anything after the point would turn the score into NaN
     p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 2, "batch": 16, "layers": 1}
-    score, epoch = tune.cv_score(df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float), 40, "lstm",
+    score, epoch = tune.cv_score(df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float), 70, "lstm",
                                  p, device="cpu", max_epochs=5)
     assert np.isfinite(score) and epoch >= 1
 
@@ -95,10 +95,10 @@ def test_monthly_task_uses_monthly_lookbacks_and_the_paper_inputs():
 
 
 def test_monthly_tuning_skips_the_month_before_the_point():
-    df = _df()
-    df.iloc[39, :3] = np.nan  # month t-1 of a point at 40 is not known yet
+    df = _df(90)
+    df.iloc[69, :3] = np.nan  # month t-1 of a point at 70 is not known yet
     p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 3, "batch": 16, "layers": 1}
-    score, _ = tune.cv_score(df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float), 40, "lstm", p,
+    score, _ = tune.cv_score(df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float), 70, "lstm", p,
                              device="cpu", max_epochs=3, gap=1)
     assert np.isfinite(score)
 
@@ -114,3 +114,61 @@ def test_monthly_walk_forward_trains_on_rows_up_to_t_minus_2():
     with pytest.raises(ValueError):
         tune.run_tuned(df, ["a", "b", "c"], "gru", {30: p}, seed=0, device="cpu", test_start=df.index[30],
                        task="T2", refit_every=100)
+
+
+def test_every_candidate_gets_the_same_validation_rows_and_the_monthly_gap():
+    folds = tune.folds_for(69, gap=1, max_lookback=24)
+    assert len(folds) == 4
+    vals = np.concatenate([va for _, va in folds])
+    assert vals.min() > 23 and vals.max() == 67  # rows 23..67 are usable by every lookback; 68 is month t-1
+    for train_end, va in folds:
+        assert train_end == va.min() - 1  # monthly: train on rows before the validation block minus one
+
+
+def test_a_lookback_without_ten_training_sequences_in_every_fold_is_infeasible():
+    df = _df(60)
+    X, y = df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float)
+    p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 12, "batch": 16, "layers": 1}
+    score, _ = tune.cv_score(X, y, 48, "lstm", p, device="cpu", max_epochs=3, max_lookback=12)
+    assert score == np.inf
+
+
+def test_validation_score_is_in_rate_units():
+    df = _df(90)
+    X, y = df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float)
+    p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 2, "batch": 16, "layers": 1}
+    s1, _ = tune.cv_score(X, y, 70, "lstm", p, device="cpu", max_epochs=5)
+    s10, _ = tune.cv_score(X, y * 10, 70, "lstm", p, device="cpu", max_epochs=5)
+    assert s10 == pytest.approx(100 * s1, rel=1e-4)
+
+
+def test_strict_arms_use_only_series_with_complete_vintages():
+    from fed_news import study5
+    t2, t1 = tune.TASKS["T2"].features, tune.TASKS["T1"].features
+    assert t2["strict"][1] == study5.B and t2["strict+C"][1] == study5.B + tune.D and t2["strict+H"][0] == "H"
+    assert t1["strict"][1] == study5.REALTIME_S
+    fallback = {"s_pce_yoy", "s_pce_core_yoy", "s_earn_yoy", "s_u6_mom", "s_u6_yoy", "s_ppi_yoy", "s_cpi_core_yoy",
+                "s_hpi_yoy"}
+    for cfg in (t1, t2):
+        for name in ("strict", "strict+C", "strict+H"):
+            assert not fallback & set(cfg[name][1])
+    assert tune.TASKS["T1"].panel == "t1b"
+
+
+def test_pair_stats_report_newey_west_and_bootstrap_without_clark_west():
+    rng = np.random.default_rng(0)
+    n = 120
+    base = pd.DataFrame({"y_true": rng.normal(size=n), "class_true": rng.integers(0, 3, n)})
+    base["y_pred"], base["class_pred"] = base["y_true"] + rng.normal(0, 1, n), base["class_true"]
+    new = base.copy()
+    new["y_pred"] = base["y_true"] + rng.normal(0, 0.5, n)
+    r = tune.pair_stats(base, new, block=8)
+    assert r["nw_p"] < 0.05 and r["sq_diff_mean"] > 0 and "clark_west_p" not in r
+    assert set(r) >= {"nw_p", "sq_diff_ci90", "acc_diff_ci90", "hln_dm_p", "mcnemar_fixes", "mcnemar_breaks"}
+
+
+def test_class_report_gives_balanced_accuracy_and_recalls():
+    p = pd.DataFrame({"class_true": [0, 0, 1, 1, 2, 2], "class_pred": [0, 1, 1, 1, 2, 0]})
+    r = tune.class_report(p)
+    assert r["recall_cut"] == 0.5 and r["recall_hold"] == 1.0 and r["recall_hike"] == 0.5
+    assert r["balanced_accuracy"] == pytest.approx(2 / 3)

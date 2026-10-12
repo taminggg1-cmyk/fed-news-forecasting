@@ -1,10 +1,11 @@
-"""Study 4, section 5: LSTM, GRU and TFT tuned on our own data (secondary)
-(docs/superpowers/specs/2026-10-12-study4-haiku-index-tuned-design.md).
+"""Study 4, sections 5, 10-12: LSTM, GRU and a TFT-inspired network tuned on our own data (secondary)
+(docs/superpowers/specs/2026-10-12-study4-haiku-index-tuned-design.md; version 2 protocol, section 12).
 
-At each tuning point (the first test meeting of 2001, 2005, ..., 2025) Optuna's TPE sampler searches the
-settings on meetings before that point only, scored by mean validation MSE over 4 expanding time-series folds.
-The chosen settings forecast every test meeting until the next point: walk-forward refits every 8 meetings
-(and at each point), 8 seeds, seed-mean forecasts. Every feature set gets the same search space and budget.
+At each tuning point (the first test row of 2001, 2005, ..., 2025) Optuna's TPE sampler searches the settings
+on rows before that point only. Every candidate is scored on the same 4 expanding validation folds (section
+12.2), in rate units (12.3); candidates without 10 training sequences in every fold are infeasible. The chosen
+settings forecast every test row until the next point: walk-forward refits every 8 meetings or 12 months (and
+at each point), 8 seeds, seed-mean forecasts. Every feature set gets the same search space and budget.
 """
 import argparse
 import json
@@ -15,31 +16,38 @@ from pathlib import Path
 import numpy as np
 import optuna
 import pandas as pd
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix, recall_score
 
 from fed_news import config, models
-from fed_news.clark_west import compare
 from fed_news.evaluate import metrics
 from fed_news.neural import build_model, fit_fixed, fit_validate, make_sequences, predict
 from fed_news.neural_walk import standardise
 from fed_news.panel import M_COLS, S_COLS
-from fed_news.stats_tests import mcnemar_greater
+from fed_news.stats_tests import dm_hln, holm, mcnemar_greater
+from fed_news.study4_sensitivity import block_bootstrap
+from fed_news.study5 import B as STRICT_T2, KEPT_SERIES, REALTIME_S as STRICT_S, check_vintages, nw_summary
 from fed_news.walkforward import train_mask
 
 ARCHS = ("lstm", "gru", "tft")
 YEARS = (2001, 2005, 2009, 2013, 2017, 2021, 2025)
 N_TRIALS, N_FOLDS, MAX_EPOCHS, PATIENCE, REFIT_EVERY, SEEDS = 30, 4, 300, 20, 8, tuple(range(8))
+MIN_TRAIN_SEQ, BOOT_DRAWS = 10, 10_000
 D = ["n_stance", "n_stance_chg"]
 FEATURES = {"S+M": ("H", S_COLS + M_COLS), "S+M+H": ("H", S_COLS + M_COLS + D), "S+M+C": ("C", S_COLS + M_COLS + D),
-            # design section 10: the same columns with the stance shifted circularly by half the panel
-            "placebo-C": ("Cp", S_COLS + M_COLS + D), "placebo-H": ("Hp", S_COLS + M_COLS + D)}
-PAIRS = [("S+M+C", "S+M"), ("S+M+H", "S+M"), ("placebo-C", "S+M"), ("placebo-H", "S+M"),
-         ("S+M+C", "placebo-C"), ("S+M+H", "placebo-H")]  # (model, the model it is tested against)
+            # section 10: the same columns with the stance shifted circularly by half the panel
+            "placebo-C": ("Cp", S_COLS + M_COLS + D), "placebo-H": ("Hp", S_COLS + M_COLS + D),
+            # section 12.4: only series whose vintages cover every row, no fallback value anywhere
+            "strict": ("C", STRICT_T2), "strict+C": ("C", STRICT_T2 + D), "strict+H": ("H", STRICT_T2 + D)}
+PAIRS = [("S+M+C", "S+M"), ("S+M+H", "S+M"), ("strict+C", "strict"), ("strict+H", "strict"),
+         ("placebo-C", "S+M"), ("placebo-H", "S+M"), ("S+M+C", "placebo-C"), ("S+M+H", "placebo-H")]
 OUT = config.RESULTS / "study4" / "neural"
-# design section 11: the monthly task with Plan 2's inputs (the paper's Table 1 statistics) and the stance columns
+# section 11: the monthly task with Plan 2's inputs (the paper's Table 1 statistics) and the stance columns
 FEATURES_T1 = {"S": ("C", S_COLS), "S+C": ("C", S_COLS + D), "S+H": ("H", S_COLS + D),
-               "placebo-C": ("Cp", S_COLS + D), "placebo-H": ("Hp", S_COLS + D)}
-PAIRS_T1 = [("S+C", "S"), ("S+H", "S"), ("placebo-C", "S"), ("placebo-H", "S"), ("S+C", "placebo-C"),
-            ("S+H", "placebo-H")]
+               "placebo-C": ("Cp", S_COLS + D), "placebo-H": ("Hp", S_COLS + D),
+               "strict": ("C", STRICT_S), "strict+C": ("C", STRICT_S + D), "strict+H": ("H", STRICT_S + D)}
+PAIRS_T1 = [("S+C", "S"), ("S+H", "S"), ("strict+C", "strict"), ("strict+H", "strict"),
+            ("placebo-C", "S"), ("placebo-H", "S"), ("S+C", "placebo-C"), ("S+H", "placebo-H")]
+GROUPS = {0: "cut", 1: "hold", 2: "hike"}
 
 
 @dataclass(frozen=True)
@@ -49,15 +57,17 @@ class TaskCfg:
     out: Path
     features: dict
     pairs: list
+    primary: tuple
     lookbacks: tuple
     refit_every: int
-    gap: int  # rows before a tuning point that are not yet known (T1: month t-1)
+    gap: int  # rows before a tuning point that are not yet known (monthly: month t-1, the t-2 rule)
     base: str
 
 
-TASKS = {"T2": TaskCfg("T2", "t2", OUT, FEATURES, PAIRS, (2, 4, 8, 12), REFIT_EVERY, 0, "S+M"),
-         "T1": TaskCfg("T1", "t1", config.RESULTS / "study4" / "neural_t1", FEATURES_T1, PAIRS_T1, (3, 6, 12, 24),
-                       12, 1, "S")}
+TASKS = {"T2": TaskCfg("T2", "t2", OUT, FEATURES, PAIRS, (("S+M+C", "S+M"), ("S+M+H", "S+M")), (2, 4, 8, 12),
+                       REFIT_EVERY, 0, "S+M"),
+         "T1": TaskCfg("T1", "t1b", config.RESULTS / "study4" / "neural_t1", FEATURES_T1, PAIRS_T1,
+                       (("S+C", "S"), ("S+H", "S")), (3, 6, 12, 24), 12, 1, "S")}
 
 
 def placebo_panel(df: pd.DataFrame, cols=D) -> pd.DataFrame:
@@ -106,15 +116,24 @@ def _target(y, rows):
     return mu, sd if sd > 0 else 1.0
 
 
+def folds_for(point: int, gap: int = 0, max_lookback: int = 1, n_folds: int = N_FOLDS) -> list:
+    """Section 12.2: (training end, validation rows) per fold, identical for every candidate lookback. The rows
+    every lookback can use, before the point (minus the gap), are cut into 5 blocks; fold k validates block k+1
+    and trains on rows before it minus the gap."""
+    eligible = np.arange(max_lookback - 1, point - gap)
+    return [(int(eligible[va][0]) - gap, eligible[va]) for _, va in models.expanding_folds(len(eligible), n_folds)]
+
+
 def cv_score(X, y_change, point: int, arch: str, p: dict, device: str, max_epochs: int = MAX_EPOCHS,
-             seed: int = 0, gap: int = 0) -> tuple[float, int]:
-    """Mean validation MSE (standardised target) over expanding folds of rows 0..point-gap-1, and the median best epoch."""
-    rows, lb = np.arange(point - gap), p["lookback"]
+             seed: int = 0, gap: int = 0, max_lookback: int | None = None) -> tuple[float, int]:
+    """Mean validation MSE in rate units over the shared folds, and the median best epoch; infinite if any fold
+    has fewer than MIN_TRAIN_SEQ training sequences for this candidate's lookback."""
+    lb = p["lookback"]
     vals, epochs = [], []
-    for tr, va in models.expanding_folds(len(rows), N_FOLDS):
-        tr, va = rows[tr][rows[tr] >= lb - 1], rows[va][rows[va] >= lb - 1]
-        if len(tr) < 2 or len(va) < 1:
-            continue
+    for train_end, va in folds_for(point, gap, max_lookback or lb):
+        tr = np.arange(lb - 1, train_end)
+        if len(tr) < MIN_TRAIN_SEQ:
+            return np.inf, 1
         mask = np.zeros(len(X), bool)
         mask[tr] = True
         Z = standardise(X, mask)
@@ -123,10 +142,8 @@ def cv_score(X, y_change, point: int, arch: str, p: dict, device: str, max_epoch
         v, e = fit_validate(model, make_sequences(Z, tr, lb), (y_change[tr] - mu) / sd, make_sequences(Z, va, lb),
                             (y_change[va] - mu) / sd, p["lr"], p["weight_decay"], p["batch"], max_epochs, PATIENCE,
                             device, seed)
-        vals.append(v)
+        vals.append(v * sd ** 2)  # standardised MSE back to rate units
         epochs.append(e)
-    if not vals:
-        return np.inf, 1
     return float(np.mean(vals)), max(1, int(np.median(epochs)))
 
 
@@ -134,7 +151,7 @@ def tune_point(X, y_change, point: int, arch: str, device: str, n_trials: int = 
                gap: int = 0) -> dict:
     def objective(trial):
         p = suggest(trial, arch, lookbacks)
-        score, epochs = cv_score(X, y_change, point, arch, p, device, gap=gap)
+        score, epochs = cv_score(X, y_change, point, arch, p, device, gap=gap, max_lookback=max(lookbacks))
         trial.set_user_attr("epochs", epochs)
         return score
 
@@ -142,7 +159,9 @@ def tune_point(X, y_change, point: int, arch: str, device: str, n_trials: int = 
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=0))
     study.optimize(objective, n_trials=n_trials)
     best = study.best_trial
-    return {**best.params, "epochs": int(best.user_attrs["epochs"]), "cv_mse": float(best.value)}
+    n_feasible = sum(bool(np.isfinite(t.value)) for t in study.trials if t.value is not None)
+    return {**best.params, "epochs": int(best.user_attrs["epochs"]), "cv_mse": float(best.value),
+            "n_feasible_trials": int(n_feasible)}
 
 
 def run_tuned(df: pd.DataFrame, cols, arch: str, settings: dict, seed: int, device: str, test_start,
@@ -196,29 +215,59 @@ def tune_all(pan: dict, device: str, n_trials: int = N_TRIALS, archs=ARCHS, feat
                 done[pt] = (tune_point(X, y, pt, arch, device, n_trials, cfg.lookbacks, cfg.gap)
                             | {"date": str(df.index[pt].date())})
                 path.write_text(json.dumps(done, indent=2))
-                print(f"{arch} {fs} {df.index[pt].date()}: {done[pt]} ({time.time() - t0:.0f}s)", flush=True)
+                print(f"{cfg.name} {arch} {fs} {df.index[pt].date()}: {done[pt]} ({time.time() - t0:.0f}s)", flush=True)
 
 
-def time_trial(pan: dict, device: str) -> dict:
-    """Seconds for one trial per architecture at the last tuning point (the most rows), and the projection."""
-    df = pan["C"]  # timing only: the ChronoBERT panel exists before the Haiku index does
-    X, y = df[S_COLS + M_COLS + D].to_numpy(float), df["y_change"].to_numpy(float)
+def time_trial(pan: dict, device: str, cfg: TaskCfg, archs=ARCHS) -> dict:
+    """Seconds per trial at the last tuning point (the most rows), per architecture: an upper bound per arm."""
+    df = pan["C"]
+    X, y = df[cfg.features[cfg.base][1] + D].to_numpy(float), df["y_change"].to_numpy(float)
     pts = tuning_points(df.index)
     secs = {}
-    for arch in ARCHS:
+    for arch in archs:
         t0 = time.time()
-        tune_point(X, y, pts[-1], arch, device, n_trials=3)
+        tune_point(X, y, pts[-1], arch, device, 3, cfg.lookbacks, cfg.gap)
         secs[arch] = (time.time() - t0) / 3
-    # upper bound: every point costs as much as the last one
-    hours = sum(secs.values()) * N_TRIALS * len(pts) * len(FEATURES) / 3600
-    res = {"seconds_per_trial_at_last_point": secs, "projected_hours_upper_bound": hours, "n_points": len(pts)}
+    res = {"task": cfg.name, "device": device, "seconds_per_trial_at_last_point": secs,
+           "hours_per_arm_upper_bound": {a: s * N_TRIALS * len(pts) / 3600 for a, s in secs.items()},
+           "arms_per_architecture": len(cfg.features)}
     print(json.dumps(res, indent=2), flush=True)
     return res
 
 
+def class_report(p: pd.DataFrame) -> dict:
+    t, c = p["class_true"].to_numpy(int), p["class_pred"].to_numpy(int)
+    rec = recall_score(t, c, labels=[0, 1, 2], average=None, zero_division=0)
+    return {"accuracy": float((t == c).mean()), "balanced_accuracy": float(balanced_accuracy_score(t, c)),
+            **{f"recall_{GROUPS[k]}": float(rec[k]) for k in range(3)}}
+
+
+def pair_stats(base: pd.DataFrame, new: pd.DataFrame, block: int) -> dict:
+    """Section 12.6: squared-error difference (base minus new; positive favours new) with a Newey-West test and
+    a paired moving-block bootstrap; accuracy difference with the same bootstrap; HLN-DM and McNemar counts."""
+    y = base["y_true"].to_numpy(float)
+    e_b, e_n = (y - base["y_pred"].to_numpy(float)) ** 2, (y - new["y_pred"].to_numpy(float)) ** 2
+    ok_b = base["class_pred"].to_numpy() == base["class_true"].to_numpy()
+    ok_n = new["class_pred"].to_numpy() == new["class_true"].to_numpy()
+    nw = nw_summary(e_b - e_n, lags=block)
+    fixes, breaks, p_mc = mcnemar_greater(ok_b, ok_n)
+    return {"n": int(len(y)), "sq_diff_mean": nw["mean"], "nw_p": nw["p_one_sided"], "sq_diff_ci90": nw["ci90"],
+            "sq_diff_boot_ci90": block_bootstrap(e_b - e_n, block, BOOT_DRAWS, 0)["ci90"],
+            "acc_diff": float(ok_n.mean() - ok_b.mean()),
+            "acc_diff_ci90": block_bootstrap(ok_n.astype(float) - ok_b.astype(float), block, BOOT_DRAWS, 0)["ci90"],
+            "hln_dm_p": dm_hln(e_b, e_n)[1], "mcnemar_fixes": fixes, "mcnemar_breaks": breaks, "mcnemar_p": p_mc}
+
+
+def _subsets(cfg: TaskCfg, pan: dict, dates: pd.Series) -> dict:
+    if cfg.name == "T2":
+        unsched = pan["C"]["unscheduled"].reindex(pd.DatetimeIndex(dates)).fillna(0).to_numpy() == 1
+        return {"scheduled": ~unsched, "all meetings": np.ones(len(dates), bool)}
+    paper = (dates >= pd.Timestamp(config.PAPER_T1[0])) & (dates <= pd.Timestamp(config.PAPER_T1[1]))
+    return {"all test months": np.ones(len(dates), bool), "paper window": paper.to_numpy()}
+
+
 def forecast_all(pan: dict, device: str, archs=ARCHS, cfg: TaskCfg = TASKS["T2"]) -> pd.DataFrame:
-    rows, comps, preds = [], [], {}
-    out = cfg.out
+    out, preds = cfg.out, {}
     for arch in archs:
         for fs, (which, cols) in cfg.features.items():
             if not _settings_path(arch, fs, out).exists():
@@ -237,26 +286,51 @@ def forecast_all(pan: dict, device: str, archs=ARCHS, cfg: TaskCfg = TASKS["T2"]
             ens["class_pred"] = models.classes_from_change(ens["y_pred"].to_numpy() - ens["lag"].to_numpy())
             ens.to_csv(out / f"preds_{arch}_{fs}.csv", index=False)
             preds[(arch, fs)] = ens
-            rows.append({"arch": arch, "features": fs, **metrics(ens)})
+    rows, comps, confusions = [], [], []
+    for (arch, fs), p in preds.items():
+        for sub, mask in _subsets(cfg, pan, p["date"]).items():
+            q = p[mask]
+            m = metrics(q)
+            rows.append({"task": cfg.name, "arch": arch, "features": fs, "subset": sub, "n": m["n"], "rmse": m["rmse"],
+                         "mae": m["mae"], "mbe": m["mbe"], **class_report(q)})
+            if cfg.name == "T2" and sub == "scheduled":
+                cm = confusion_matrix(q["class_true"], q["class_pred"], labels=[0, 1, 2])
+                confusions += [{"arch": arch, "features": fs, "true": GROUPS[i],
+                                **{f"pred_{GROUPS[j]}": int(cm[i, j]) for j in range(3)}} for i in range(3)]
+    for arch in archs:
         for new, base in cfg.pairs:
-            if (arch, new) in preds and (arch, base) in preds:
-                b, p = preds[(arch, base)], preds[(arch, new)]
-                fixes, breaks, p_mc = mcnemar_greater(b["class_pred"] == b["class_true"], p["class_pred"] == p["class_true"])
-                comps.append({"arch": arch, "model": new, "against": base, **compare(b, p),
-                              "mcnemar_fixes": fixes, "mcnemar_breaks": breaks, "mcnemar_p": p_mc})
-    table, comp = pd.DataFrame(rows), pd.DataFrame(comps)
+            if (arch, new) not in preds or (arch, base) not in preds:
+                continue
+            role = "primary" if (new, base) in cfg.primary else "strict" if new.startswith("strict") else "placebo"
+            b, n = preds[(arch, base)], preds[(arch, new)]
+            for sub, mask in _subsets(cfg, pan, b["date"]).items():
+                comps.append({"task": cfg.name, "arch": arch, "model": new, "against": base, "role": role,
+                              "subset": sub, **pair_stats(b[mask].reset_index(drop=True),
+                                                          n[mask].reset_index(drop=True), cfg.refit_every)})
+    comp = pd.DataFrame(comps)
+    if len(comp):
+        main_sub = "scheduled" if cfg.name == "T2" else "all test months"
+        prim = comp[(comp["role"] == "primary") & (comp["subset"] == main_sub)]
+        adj = holm({f"{r.arch} {r.model}": r.nw_p for r in prim.itertuples()})
+        comp["nw_p_holm"] = [adj.get(f"{r.arch} {r.model}") if r.role == "primary" and r.subset == main_sub
+                             else np.nan for r in comp.itertuples()]
     if cfg.name == "T1":
-        comp = pd.concat([comp, paper_settings_rows(preds, archs)], ignore_index=True)
+        comp = pd.concat([comp, paper_settings_rows(preds, archs, cfg)], ignore_index=True)
+    table = pd.DataFrame(rows)
     table.to_csv(out / f"metrics_neural_{cfg.name}.csv", index=False)
     comp.to_csv(out / f"comparison_neural_{cfg.name}.csv", index=False)
-    pd.set_option("display.width", 200)
+    if confusions:
+        pd.DataFrame(confusions).to_csv(out / f"confusion_neural_{cfg.name}.csv", index=False)
+    pd.set_option("display.width", 250)
     print(table.round(4).to_string(index=False))
-    print(comp.round(4).to_string(index=False), flush=True)
+    print(comp.drop(columns=["sq_diff_ci90", "sq_diff_boot_ci90", "acc_diff_ci90"], errors="ignore").round(4)
+          .to_string(index=False), flush=True)
     return comp
 
 
-def paper_settings_rows(preds: dict, archs) -> pd.DataFrame:
-    """Section 11 (a): tuned S against Plan 2's paper-settings S forecasts, all test months and the paper window."""
+def paper_settings_rows(preds: dict, archs, cfg: TaskCfg) -> pd.DataFrame:
+    """Section 11 (a), descriptive under 12.6: tuned S against Plan 2's paper-settings S forecasts on the same
+    months (Plan 2 used the version 1 cutoff; its LSTM settings do not match the paper version read 2026-10-12)."""
     rows = []
     for arch in archs:
         if (arch, "S") not in preds:
@@ -268,16 +342,14 @@ def paper_settings_rows(preds: dict, archs) -> pd.DataFrame:
             o = old[(old["date"] >= lo) & (old["date"] <= hi)]
             n = new[new["date"].isin(o["date"])].sort_values("date").reset_index(drop=True)
             o = o[o["date"].isin(n["date"])].sort_values("date").reset_index(drop=True)
-            fixes, breaks, p_mc = mcnemar_greater(o["class_pred"] == o["class_true"],
-                                                  n["class_pred"] == n["class_true"])
-            rows.append({"arch": arch, "model": f"S tuned ({window})", "against": "S paper settings",
-                         "rmse_against": metrics(o)["rmse"], "rmse_model": metrics(n)["rmse"],
-                         "accuracy_against": metrics(o)["accuracy"], "accuracy_model": metrics(n)["accuracy"],
-                         **compare(o, n), "mcnemar_fixes": fixes, "mcnemar_breaks": breaks, "mcnemar_p": p_mc})
+            rows.append({"task": "T1", "arch": arch, "model": "S tuned (v2)", "against": "S paper settings (Plan 2)",
+                         "role": "settings", "subset": window, "rmse_against": metrics(o)["rmse"],
+                         "rmse_model": metrics(n)["rmse"], **pair_stats(o, n, cfg.refit_every)})
     return pd.DataFrame(rows)
 
 
 def panels_for(cfg: TaskCfg) -> dict:
+    from fed_news import alfred
     if cfg.name == "T2":
         from fed_news.haiku_compare import panels
         pan = panels()
@@ -290,6 +362,8 @@ def panels_for(cfg: TaskCfg) -> dict:
         h = common_rows(naive_panel(cfg.panel, pd.read_pickle(HAIKU_PATH)))
         c, h = same_rows(c, h)
         pan = {"C": c, "H": h}
+    first = {k: v["realtime_start"].min() for k, v in alfred.load_all().items()}
+    check_vintages(first, KEPT_SERIES, pd.Timestamp(pan["C"]["cutoff"].iloc[0]))  # strict arms: no fallback
     pan["Cp"], pan["Hp"] = placebo_panel(pan["C"]), placebo_panel(pan["H"])
     return pan
 
@@ -303,14 +377,11 @@ def main(argv=None) -> None:
     ap.add_argument("--features", nargs="+", default=None, choices=sorted(set(FEATURES) | set(FEATURES_T1)))
     ap.add_argument("--task", default="T2", choices=sorted(TASKS))
     args = ap.parse_args(argv)
-    if args.step == "time":
-        from fed_news.naive_stance import naive_panel
-        from fed_news.walkforward import common_rows
-        time_trial({"C": common_rows(naive_panel("t2", pd.read_pickle(config.DATA / "doc_stance.pkl")))}, args.device)
-        return
     cfg = TASKS[args.task]
     pan = panels_for(cfg)
-    if args.step == "tune":
+    if args.step == "time":
+        time_trial(pan, args.device, cfg, args.archs)
+    elif args.step == "tune":
         tune_all(pan, args.device, args.trials, args.archs, args.features, cfg)
     else:
         forecast_all(pan, args.device, args.archs, cfg)
