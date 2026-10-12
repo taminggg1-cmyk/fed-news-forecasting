@@ -73,9 +73,9 @@ def pilot_sample(labels, attempt: int):
     return pick.reset_index(drop=True)
 
 
-def _ask(client, sentences: list[str], usage: dict, settings: dict) -> list[int] | None:
+def _ask(client, sentences: list[str], usage: dict, settings: dict, cap: int = TOKEN_CAP) -> list[int] | None:
     for _ in range(2):  # one retry on a malformed, cut-off or refused answer
-        if usage["input"] + usage["output"] >= TOKEN_CAP:
+        if usage["input"] + usage["output"] >= cap:
             return None
         r = client.messages.create(model=MODEL, system=SYSTEM, **settings,
                                    messages=[{"role": "user", "content": batch_prompt(sentences)}])
