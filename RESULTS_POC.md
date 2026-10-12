@@ -114,3 +114,10 @@ Confusion (rows human, columns Haiku; dovish, hawkish, neutral): dovish 46 / 6 /
 neutral 23 / 17 / 115. Almost all disagreement is about whether a sentence is neutral (83 of 98 errors);
 when both call a sentence directional, they agree on the direction 85% of the time. The neutral boundary of
 the labels is the fuzzy part, which also caps the trained scorers. LLM labelling is dropped, as fixed in advance.
+
+**Attempt 2** (one change, at the user's request: effort medium with adaptive thinking allowed; fresh sample of
+300 other pre-2012 sentences; same bar): **not passed**, agreement 0.657 (recall dovish / hawkish / neutral
+0.71 / 0.42 / 0.75; hawkish-vs-dovish agreement 0.888; 90 of 103 errors involve the neutral class). Output was
+1,776 tokens for 300 sentences, about the same as attempt 1 (1,704): with adaptive thinking Haiku chose not to
+think on this task, so attempt 2 effectively re-measured the same setup on new sentences. Over both samples
+(600 sentences) agreement is about 0.665.

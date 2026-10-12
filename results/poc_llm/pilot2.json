@@ -1,0 +1,41 @@
+{
+  "model": "claude-haiku-5-5",
+  "attempt": 2,
+  "settings": {
+    "output_config": {
+      "effort": "medium"
+    },
+    "max_tokens": 8000
+  },
+  "n": 300,
+  "n_unlabelled": 0,
+  "agreement": 0.6566666666666666,
+  "recall_dovish_hawkish_neutral": [
+    0.705,
+    0.42,
+    0.746
+  ],
+  "confusion_rows_human_cols_llm_DHN": [
+    [
+      74,
+      4,
+      27
+    ],
+    [
+      9,
+      29,
+      31
+    ],
+    [
+      25,
+      7,
+      94
+    ]
+  ],
+  "hawk_dove_sign_agreement": 0.8879310344827587,
+  "tokens": {
+    "input": 19690,
+    "output": 1776
+  },
+  "passed": false
+}
