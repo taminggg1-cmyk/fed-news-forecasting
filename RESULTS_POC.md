@@ -96,3 +96,21 @@ a larger chronologically consistent model (frozen or fine-tuned) nor fine-tuning
 0.6 on later years. The human sentence labels are themselves noisy, which caps any scorer. No further forecasting
 run was made. Separately, the pre-registered results show that markets already carry most of what Fed text could
 add for the next decision, which a better scorer would not change.
+
+## 5. Can Claude Haiku 5.5 label Fed sentences like the human annotators?
+
+Design: `docs/superpowers/specs/2026-10-12-poc-llm-labels-design.md`. 300 human-labelled sentences dated before
+2012, text only, zero-shot, 25 per request (19,559 input and 1,704 output tokens).
+
+**Result: not passed** (rule: three-class agreement with the human labels at least 0.70).
+
+| | |
+|---|---|
+| Three-class agreement | 0.673 |
+| Recall dovish / hawkish / neutral | 0.61 / 0.59 / 0.74 |
+| Hawkish-vs-dovish agreement (both directional) | 0.853 |
+
+Confusion (rows human, columns Haiku; dovish, hawkish, neutral): dovish 46 / 6 / 24, hawkish 9 / 41 / 19,
+neutral 23 / 17 / 115. Almost all disagreement is about whether a sentence is neutral (83 of 98 errors);
+when both call a sentence directional, they agree on the direction 85% of the time. The neutral boundary of
+the labels is the fuzzy part, which also caps the trained scorers. LLM labelling is dropped, as fixed in advance.

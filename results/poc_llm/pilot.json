@@ -1,0 +1,34 @@
+{
+  "model": "claude-haiku-5-5",
+  "n": 300,
+  "n_unlabelled": 0,
+  "agreement": 0.6733333333333333,
+  "recall_dovish_hawkish_neutral": [
+    0.605,
+    0.594,
+    0.742
+  ],
+  "confusion_rows_human_cols_llm_DHN": [
+    [
+      46,
+      6,
+      24
+    ],
+    [
+      9,
+      41,
+      19
+    ],
+    [
+      23,
+      17,
+      115
+    ]
+  ],
+  "hawk_dove_sign_agreement": 0.8529411764705882,
+  "tokens": {
+    "input": 19559,
+    "output": 1704
+  },
+  "passed": false
+}
