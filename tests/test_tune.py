@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import optuna
 import pandas as pd
 import torch
@@ -82,3 +83,34 @@ def test_placebo_arms_use_the_real_columns_and_the_comparisons_cover_both_questi
         assert tune.FEATURES[f"placebo-{reader}"][1] == tune.FEATURES[f"S+M+{reader}"][1]
         assert tune.FEATURES[f"placebo-{reader}"][0] == reader + "p"
         assert (f"placebo-{reader}", "S+M") in tune.PAIRS and (f"S+M+{reader}", f"placebo-{reader}") in tune.PAIRS
+
+
+def test_monthly_task_uses_monthly_lookbacks_and_the_paper_inputs():
+    cfg = tune.TASKS["T1"]
+    assert cfg.lookbacks == (3, 6, 12, 24) and cfg.refit_every == 12 and cfg.gap == 1 and cfg.base == "S"
+    assert cfg.features["S"][1] == tune.S_COLS and cfg.features["placebo-H"][1] == tune.S_COLS + tune.D
+    assert ("S+C", "placebo-C") in cfg.pairs and ("placebo-H", "S") in cfg.pairs
+    study = optuna.create_study(sampler=optuna.samplers.RandomSampler(seed=0))
+    assert tune.suggest(study.ask(), "lstm", cfg.lookbacks)["lookback"] in (3, 6, 12, 24)
+
+
+def test_monthly_tuning_skips_the_month_before_the_point():
+    df = _df()
+    df.iloc[39, :3] = np.nan  # month t-1 of a point at 40 is not known yet
+    p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 3, "batch": 16, "layers": 1}
+    score, _ = tune.cv_score(df[["a", "b", "c"]].to_numpy(float), df["y_change"].to_numpy(float), 40, "lstm", p,
+                             device="cpu", max_epochs=3, gap=1)
+    assert np.isfinite(score)
+
+
+def test_monthly_walk_forward_trains_on_rows_up_to_t_minus_2():
+    df = _df()
+    df.iloc[29, df.columns.get_loc("y_change")] = np.nan  # the row just before the first forecast
+    p = {"hidden": 8, "dropout": 0.0, "lr": 1e-2, "weight_decay": 0.0, "lookback": 3, "batch": 16, "layers": 1,
+         "epochs": 2}
+    out = tune.run_tuned(df, ["a", "b", "c"], "gru", {30: p}, seed=0, device="cpu", test_start=df.index[30],
+                         task="T1", refit_every=100)
+    assert len(out) == 30
+    with pytest.raises(ValueError):
+        tune.run_tuned(df, ["a", "b", "c"], "gru", {30: p}, seed=0, device="cpu", test_start=df.index[30],
+                       task="T2", refit_every=100)
