@@ -154,3 +154,22 @@ values published at each date. Known construction facts are reported (SF Fed: st
 changing newspaper sample, 16 then 24 newspapers; GPR: methodology revised in 2021 and rebased; EPU:
 normalised to its 1985-2009 mean). Archived copies of the files are compared with the current ones if they
 can be retrieved; otherwise revision behaviour is reported as unverified.
+
+## 10. Placebo news for the tuned networks (exploratory, added after the LSTM and GRU results)
+
+Requested by the user after seeing the tuned LSTM and GRU results (LSTM gained with Haiku, GRU with
+ChronoBERT). Recorded before any placebo run.
+
+- Placebo arms, for each of LSTM, GRU and TFT: placebo-C and placebo-H. The two stance columns are shifted
+  circularly by half the panel (130 of 260 rows), so each meeting gets the stance of a meeting about 13 years
+  away. This keeps the series' distribution and persistence (which sequence models use) and breaks its link to
+  the meeting being forecast. Every other column is unchanged.
+- Each placebo arm gets the same Optuna search, budget, tuning points and 8 seeds as the real arms (section 5).
+  LSTM and GRU placebo arms are tuned on the CPU while the TFT's real arms finish on the GPU; numerical results
+  can differ slightly by device, with no expected direction.
+- Reported for every architecture and reader: placebo against no news (DM-HLN, one-sided), and real news
+  against its placebo (DM-HLN, one-sided: does the real stance beat the shifted one?), with accuracy and
+  McNemar counts.
+- Reading fixed now: a real-news gain counts as coming from the news content only if real news beats its own
+  placebo at p < 0.05 and the placebo does not beat no news at p < 0.05. Otherwise the gain is attributed to
+  tuning and training noise. All of this is exploratory and does not change the section 4 verdict.
