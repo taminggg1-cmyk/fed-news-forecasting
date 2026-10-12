@@ -142,3 +142,22 @@ def test_label_sheet_hides_dates_and_scores_and_samples_changed_pairs_only():
 ])
 def test_parse_dissent_older_formats_and_move_size(text, action, expected):
     assert sc.parse_dissent(text, action) == expected
+
+
+def test_stage1_human_labels_uses_only_labels_unseen_by_the_scoring_classifier():
+    table = pd.DataFrame({"doc_id": ["a", "b", "c"],
+                          "added": [[], ["inflation pressures have eased."], ["growth is strong.", "a conflicted line."]],
+                          "removed": [[], ["inflation risks are elevated."], ["inflation pressures have eased."]]},
+                         index=pd.to_datetime(["2005-01-10", "2005-02-01", "2005-03-01"]))
+    scores = pd.DataFrame({"doc_id": ["a", "b", "c", "c"],
+                           "sentence": ["inflation risks are elevated.", "inflation pressures have eased.",
+                                        "growth is strong.", "a conflicted line."],
+                           "stance": [0.6, -0.3, -0.8, -5.0]})
+    labels = pd.DataFrame({"sentence": ["inflation pressures have eased.", "inflation risks are elevated.",
+                                        "growth is strong.", "a conflicted line.", "a conflicted line."],
+                           "label": [0, 1, 1, 1, 0], "year": [2005, 2005, 2004, 2005, 2005]})
+    pairs, res = sc.stage1_human_labels(table, scores, labels)
+    assert pairs["human_shift"].tolist() == [-2.0, 1.0]
+    assert pairs["model_shift"].tolist() == pytest.approx([-0.9, 0.3])
+    assert res["n_directional"] == 2 and res["agreement"] == 1.0
+    assert res["passed"] is False  # fewer than 20 directional pairs

@@ -111,3 +111,19 @@ The rule leaves direction at 0 when the text gives no explicit rate or accommoda
 happens for dissents that read hawkish (Hoenig 2010, Fisher/Kocherlakota/Plosser Aug 2011, Lacker 2012 twice,
 Plosser Dec 2014) and dovish (Rosengren Dec 2013, Kocherlakota Dec 2014, Waller Mar 2025), so
 `x_dissent_dir` is a partial measure of dissent direction.
+
+## 10. Amendment: stage 1 reference labels (2026-10-12, before stage 1 scoring and before stage 2)
+
+The user cannot hand-label the 40 pairs, so the measurement check uses the existing human sentence labels
+(TDW and WCB, `labels.load_labels`; hawkish +1, dovish -1, neutral 0) instead. The 40-pair label sheet is not
+used.
+- For every statement pair, a changed sentence counts when it has a human label (matched after `normalise`;
+  sentences with conflicting labels are dropped) and that label was not available to the classifier that
+  scored it: label year >= `stance.classifier_year` of the release year of the statement the score comes from
+  (the current statement for added sentences, the previous one for removed sentences).
+- human shift = sum of labels of counted added sentences - sum of labels of counted removed sentences;
+  model shift = the same sums of the saved stance scores of exactly those sentences.
+- Pass: at least 20 pairs with a non-zero human shift; among them sign(model shift) = sign(human shift) on at
+  least 70% (a zero model shift counts as disagreement) and above the share of the more common human sign.
+- This checks the sentence scores on changed sentences (about 5% of them carry a label), not the judgement of
+  whole statement pairs. The dissent part of stage 1 is unchanged (passed, section 9).

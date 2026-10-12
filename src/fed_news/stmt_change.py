@@ -179,6 +179,56 @@ def stage1_measurement(labels: pd.DataFrame, key: pd.DataFrame) -> dict:
             "majority_share": majority, "passed": bool(agreement >= 0.7 and agreement > majority)}
 
 
+def stage1_human_labels(table: pd.DataFrame, scores: pd.DataFrame,
+                        labels: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Design section 10: model vs human shift on changed sentences whose label the scoring classifier never saw."""
+    sign = {0: -1.0, 1: 1.0, 2: 0.0}  # labels.LABELS: dovish 0, hawkish 1, neutral 2
+    lab = labels.assign(key=labels["sentence"].map(normalise))
+    consistent = lab.groupby("key")["label"].nunique() == 1
+    ref = lab[lab["key"].map(consistent)].groupby("key").agg(label=("label", "first"), year=("year", "min"))
+    stance = {d: {normalise(s): st for s, st in zip(g["sentence"], g["stance"])}
+              for d, g in scores.groupby("doc_id", sort=False)}
+    clf_year = lambda day: max(day.year, config.FIRST_CLASSIFIER_YEAR)  # as stance.classifier_year
+    rows = []
+    for k in range(1, len(table)):
+        cur, prev = table.iloc[k], table.iloc[k - 1]
+        human = model = 0.0
+        n = 0
+        for sentences, doc, year, sgn in ((cur["added"], cur["doc_id"], clf_year(table.index[k]), 1.0),
+                                          (cur["removed"], prev["doc_id"], clf_year(table.index[k - 1]), -1.0)):
+            for s in sentences:
+                key = normalise(s)
+                if key in ref.index and ref.at[key, "year"] >= year and key in stance.get(doc, {}):
+                    human += sgn * sign[int(ref.at[key, "label"])]
+                    model += sgn * stance[doc][key]
+                    n += 1
+        if n:
+            rows.append({"release": table.index[k], "doc_id": cur["doc_id"], "n_labelled": n,
+                         "human_shift": human, "model_shift": model})
+    pairs = pd.DataFrame(rows, columns=["release", "doc_id", "n_labelled", "human_shift", "model_shift"])
+    d = pairs[pairs["human_shift"] != 0]
+    agreement = float((np.sign(d["model_shift"]) == np.sign(d["human_shift"])).mean()) if len(d) else 0.0
+    majority = float(np.sign(d["human_shift"]).value_counts(normalize=True).max()) if len(d) else 1.0
+    return pairs, {"label_source": "TDW/WCB human sentence labels (design section 10)",
+                   "n_pairs_with_labels": int(len(pairs)), "n_directional": int(len(d)),
+                   "agreement": agreement, "majority_share": majority,
+                   "passed": bool(len(d) >= 20 and agreement >= 0.7 and agreement > majority)}
+
+
+def score_stage1_human() -> dict:
+    from fed_news.labels import load_labels
+    _, scores, _ = load_inputs()
+    pairs, res = stage1_human_labels(pd.read_pickle(WORK / "statements.pkl"), scores, load_labels())
+    pairs.to_csv(OUT / "stage1_human_pairs.csv", index=False)
+    check = pd.read_csv(OUT / "dissent_check.csv", encoding="utf-8-sig")
+    res["dissent_checked"] = int(check["correct"].notna().sum())
+    res["dissent_all_correct"] = bool((check["correct"].astype(str).str.upper() == "Y").all())
+    res["stage1_passed"] = bool(res["passed"] and res["dissent_all_correct"] and res["dissent_checked"] == len(check))
+    (OUT / "stage1.json").write_text(json.dumps(res, indent=2))
+    print(json.dumps(res, indent=2), flush=True)
+    return res
+
+
 def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     corpus = pd.read_pickle(config.DATA / "corpus.pkl")
     scores = pd.concat([pd.read_pickle(f)[0] for f in sorted(glob.glob(str(config.DATA / "stance" / "*.pkl")))])
@@ -222,9 +272,9 @@ def score_stage1() -> dict:
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["prepare", "score"])
+    ap.add_argument("step", choices=["prepare", "score", "score-human"])
     args = ap.parse_args(argv)
-    prepare_stage1() if args.step == "prepare" else score_stage1()
+    {"prepare": prepare_stage1, "score": score_stage1, "score-human": score_stage1_human}[args.step]()
 
 
 if __name__ == "__main__":
