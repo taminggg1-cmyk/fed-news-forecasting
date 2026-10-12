@@ -121,3 +121,36 @@ number, the leak section and the deviations, if any.
 tokens: 1,544 input tokens per request on average over 200 counted requests, 13,750 requests, plus 8 output
 tokens per sentence. That exceeds the 20,000,000 limit, so nothing was submitted and the user was asked. The
 user allowed the full corpus; the limit is now 25,000,000. Nothing else changes.
+
+## 8. Sensitivity checks after the external review (exploratory, added after the section 4 results)
+
+Recorded before any of these runs. None of them changes the section 4 verdict; all are labelled exploratory.
+
+8.1 **Real-time data.** 96 of 212 test rows (to 2012-04-25) use at least one revised value from the ALFRED
+fallback (average hourly earnings, U6, house prices). (a) Drop the four S columns built from those series
+(`s_earn_yoy`, `s_u6_mom`, `s_u6_yoy`, `s_hpi_yoy`) and rerun S+M, S+M+H, S+M+C and S+M+N on the full test
+window. (b) Report the original and the (a) forecasts on the test meetings after the last fallback row
+(2012-06-20 onward, 116 meetings); a walk-forward forecast depends only on earlier rows, so this subset equals
+a rerun that starts there. Training rows before 2001 still hold fallback values for PCE, PPI and core CPI
+(their vintages start 1996-2000); this is stated as a remaining limitation.
+
+8.2 **Which news columns carry the Plan 1 gain, in one pipeline.** The Plan 1 panel equals the Study 4
+ChronoBERT panel row for row and column for column (checked). Cumulative: S+M, + ChronoBERT stance (2 columns),
++ Beige Book tone, + SF Fed news sentiment, + GPR, + EPU (the last is S+M+N). Single additions: S+M plus each
+of Beige Book, news sentiment, GPR and EPU alone. Reported: log loss, accuracy, one-sided DM-HLN p on log loss
+against S+M. No decision rule. Wording fixed now: "the higher accuracy appears in specifications that include
+indices with vintage concerns"; no column is called the cause.
+
+8.3 **Reporting.** Correct counts by class and net change against S+M (cuts, holds, hikes), and turning points
+(decision class differs from the previous meeting's; these overlap the classes and are not added to them).
+Primary comparison with Newey-West HAC standard errors (lags 4 and 8) and a moving-block bootstrap (blocks of
+8 meetings, 10,000 draws, seed 0). McNemar reported one-sided (the registered direction) and two-sided.
+
+8.4 **Wording.** The July and September 2026 meetings are a *retrospective post-cutoff evaluation*: Claude
+Haiku 5.5 was released on 2026-10-07, after both meetings. Live forecasts are a separate, future exercise.
+
+8.5 **Index provenance.** The daily indices were downloaded in 2026, so they are current vintages, not the
+values published at each date. Known construction facts are reported (SF Fed: statistical adjustment for the
+changing newspaper sample, 16 then 24 newspapers; GPR: methodology revised in 2021 and rebased; EPU:
+normalised to its 1985-2009 mean). Archived copies of the files are compared with the current ones if they
+can be retrieved; otherwise revision behaviour is reported as unverified.
