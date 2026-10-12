@@ -69,7 +69,8 @@ def _standardise(X, train):
 
 
 def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None = None,
-             seed: int = 0, require_prereg: bool = True) -> pd.DataFrame:
+             seed: int = 0, require_prereg: bool = True, proba: bool = False) -> pd.DataFrame:
+    # proba=True (Study 4) also saves the ordered logit's class probabilities; forecasts are unchanged.
     if require_prereg and any(c in N_COLS for c in spec.cols) and not prereg_ok():
         raise PermissionError(f"{spec.name} uses news columns; tag '{config.PREREG_TAG}' first")
     if not (df.index.is_monotonic_increasing and df.index.is_unique):
@@ -90,7 +91,7 @@ def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None
     out = []
     for i in test:
         train = train_mask(len(df), i, spec.task)
-        cls = None
+        cls, probs = None, (np.nan, np.nan, np.nan)
         if spec.kind == "rw":
             change = 0.0
         elif spec.kind == "taylor":
@@ -111,11 +112,14 @@ def run_spec(df: pd.DataFrame, spec: Spec, test_start: str, test_end: str | None
             else:
                 lam = models.choose_penalty(models.OrderedLogit, models.logloss_score,
                                             Z[train], ycl[train], config.ORDLOGIT_GRID)
-                proba = models.OrderedLogit(lam).fit(Z[train], ycl[train]).predict_proba(Z[i:i + 1])[0]
-                change = float(proba @ models.move_sizes(ycl[train], yc[train]))
-                cls = int(proba.argmax())
+                p = models.OrderedLogit(lam).fit(Z[train], ycl[train]).predict_proba(Z[i:i + 1])[0]
+                change = float(p @ models.move_sizes(ycl[train], yc[train]))
+                cls, probs = int(p.argmax()), tuple(float(v) for v in p)
         if cls is None:
             cls = int(models.classes_from_change(np.array([change]))[0])
-        out.append({"date": dates[i], "y_true": y_level[i], "y_pred": lag[i] + change, "lag": lag[i],
-                    "class_true": int(y_class[i]), "class_pred": cls})
+        row = {"date": dates[i], "y_true": y_level[i], "y_pred": lag[i] + change, "lag": lag[i],
+               "class_true": int(y_class[i]), "class_pred": cls}
+        if proba:
+            row.update(zip(("p_cut", "p_hold", "p_hike"), probs))
+        out.append(row)
     return pd.DataFrame(out)

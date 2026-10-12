@@ -167,3 +167,14 @@ def test_shuffled_labels_control_destroys_signal():
     acc = lambda p: (p["class_pred"] == p["class_true"]).mean()
     assert np.isfinite(sh["y_pred"]).all()
     assert acc(sh) < acc(sn) - 0.15
+
+
+def test_run_spec_can_save_class_probabilities_without_changing_forecasts():
+    spec = {s.name: s for s in wf.ladder("T2")}["S+M"]
+    df = synthetic(100)
+    plain = wf.run_spec(df, spec, "2002-01-01", require_prereg=False)
+    out = wf.run_spec(df, spec, "2002-01-01", require_prereg=False, proba=True)
+    p = out[["p_cut", "p_hold", "p_hike"]].to_numpy()
+    assert np.allclose(p.sum(1), 1) and (p > 0).all()
+    assert np.array_equal(out["class_pred"], p.argmax(1))
+    assert out[plain.columns].equals(plain)
