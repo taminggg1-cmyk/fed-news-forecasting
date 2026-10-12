@@ -1,0 +1,116 @@
+# Study 4: a Haiku news index and tuned neural forecasters (exploratory)
+
+Date: 2026-10-12. Requested by the user after the proof-of-concept series (RESULTS_POC.md). Fixed and committed
+before any API call, any tuning run and any Study 4 forecast. The 2001-2026 meetings are not untouched data:
+every earlier study used them, so all Study 4 results are labelled exploratory.
+
+## 1. Question
+
+Does a news index built by Claude Haiku 5.5 (sentence stance labels, replacing ChronoBERT) improve forecasts
+of FOMC decisions over the same model without news? And do LSTM, GRU and TFT forecasters, tuned on our own
+data instead of using settings taken from a reference paper, change that answer?
+
+## 2. What the literature says about leakage, and what this study does
+
+Pre-cutoff skill of a commercial LLM is not identified: a model that saw the outcomes in training cannot be
+shown to forecast them without memory (Lopez-Lira, Tang and Zhu 2025). Masking names and dates is partial
+(Glasserman and Lin 2023; Lopez-Lira et al. 2025 find models rebuild entities and dates); prompting the model to
+ignore the future does not work (Lopez-Lira et al. 2025); clean evidence needs a leak-free model (He, Lv, Manela
+and Wu 2025; Sarkar 2024) or data after the training cutoff (Ludwig, Mullainathan and Rambachan 2025; Crane,
+Karra and Soto 2025). Gao, Jiang and Yan (2025) test whether forecast power is larger where the model recalls
+the outcome. Engelberg, Manela, Mullins and Vulicevic (2025) bound the bias by neutering the text until a
+separate model cannot identify it.
+
+This study therefore uses every available layer and claims no more than they support:
+
+1. **Masking** (`poc_haiku_leak.mask`: years, months, numbers, official names, named events). Its known limit
+   is reported: Haiku dates 38.7% of masked sentences within 2 years (Test A) and 89.5% of masked statements
+   within 1 year (memory exam).
+2. **Random order across documents and years**, 25 sentences per request, so no request carries a whole
+   document's context.
+3. **No "ignore the future" instruction** (shown not to work).
+4. **Leak-free reference**: the ChronoBERT stance index in the identical model on identical rows.
+5. **Recall-interaction test** (adapted from Gao, Jiang and Yan 2025; the API gives no token probabilities, so
+   recall is the memory exam's per-meeting result: Haiku named the decision from the date alone).
+6. **Post-cutoff meetings**: Haiku 5.5's training data ends June 2026, so 2026-07-29 and 2026-09-16 are unseen.
+   Two meetings carry no statistical weight; they are reported one by one. Live forecasts of future meetings
+   get their own committed rules before the next meeting.
+7. **Prior red flag reported**: Test B already found Haiku's sentence labels track the next decision beyond the
+   human label and ChronoBERT (p = 0.00005). The paper states this next to any Study 4 result.
+
+## 3. The Haiku news index
+
+- Documents: every corpus document of types statement, minutes, press conference and speech (2,578 documents),
+  split into sentences by `stance._sentence_table` (343,742 sentences), exactly the set ChronoBERT scored.
+- Each sentence is masked (layer 1). Sentences go in a random order (seed 0) in requests of 25.
+- Prompt and settings are the attempt-1 labeller, unchanged: `poc_llm_labels.SYSTEM`, `batch_prompt`, model
+  `claude-haiku-5-5`, thinking disabled, effort low, max_tokens 1024. No prompt is tuned on any outcome.
+- Sent through the Message Batches API. A request whose reply cannot be parsed, is refused or is cut off is
+  sent once more in a second batch; sentences still unlabelled are left out of their document's mean, and
+  their count is reported.
+- **Token rule:** before submitting, the input tokens of 200 random requests are counted with the free
+  token-counting endpoint and scaled to all requests; output is projected at 8 tokens per sentence. If the
+  projection exceeds 20,000,000 tokens, nothing is submitted and the user is asked.
+- Sentence score: hawkish +1, dovish -1, neutral 0. Document stance: mean over its labelled sentences (share
+  hawkish minus share dovish, the same scale as ChronoBERT's probability difference). Saved as
+  `doc_stance_haiku.pkl` in the `doc_stance.pkl` format.
+- Meeting features: `naive_stance.naive_panel("t2", ...)`, the aggregation every earlier study used
+  (`n_stance`, `n_stance_chg`; text window from the previous meeting's cutoff to the day before the decision).
+
+## 4. Forecast comparison (primary: penalised ordered logit, T2)
+
+Same engine as Plan 1 (`walkforward.run_spec`, penalty by expanding-window CV inside the training rows,
+features standardised on the training rows), with a new option that saves the three class probabilities.
+Rows: the meetings where every column below is present in both panels; test window 2001-01-01 to 2026-09-16.
+
+| Name | Features |
+|---|---|
+| S+M | economic data and market prices, no news (baseline) |
+| S+M+H | S+M plus the Haiku stance (`n_stance`, `n_stance_chg`) |
+| S+M+C | S+M plus the ChronoBERT stance (leak-free reference) |
+| placebo-H | S+M+H with the Haiku columns permuted across training rows (Plan 1 placebo) |
+| shuffled-H | S+M+H with the training targets permuted (Plan 1 control) |
+
+- Primary loss: per-meeting log loss of the true class. Primary test: one-sided Harvey-Leybourne-Newbold
+  Diebold-Mariano, S+M+H against S+M. Secondary: Clark-West on the rate forecast, McNemar on accuracy, Brier.
+- **Verdict** (`evaluate.decide` rules): placebo-H must not beat S+M at p < 0.05 and shuffled-H not at p < 0.01,
+  else "void". Otherwise "supported" if the primary p < 0.05, else "not supported".
+- **Memory flag**: for test meetings with a memory-exam row, regress the Haiku gain minus the ChronoBERT gain
+  (gain = S+M log loss minus the news model's log loss) on a recalled indicator, HC3 standard errors. Flag if
+  the coefficient is positive with one-sided p < 0.05: Haiku's advantage over the leak-free reader is larger
+  where Haiku remembers the decision. The same regression on a dated indicator (year guessed within 1) is
+  reported without a rule. Fewer than 30 meetings are not recalled, so power is low; a quiet flag is weak evidence.
+- **Wording fixed now.** "Supported" without the flag: "the Haiku index improves forecasts; memory cannot be
+  ruled out (pre-cutoff skill is not identified), but no memory pattern was detected". "Supported" with the
+  flag: "the improvement is consistent with memory". The comparison of S+M+H with S+M+C (same tests) is
+  reported without a rule.
+
+## 5. Tuned neural forecasters (secondary)
+
+The earlier neural settings were not tuned on our data (GRU 188 hidden units, learning rate 2e-4, 449 epochs
+and 12 steps are copied from Chan-Lau, Quach and Shi 2025; the LSTM's 240 / 1e-4 / 300 were set by hand; the
+TFT used default sizes). They stay in the results only as labelled reference rows.
+
+- Task T2 (one row per meeting), target the rate change, standardised on the fit rows. Architectures LSTM, GRU
+  and TFT; feature sets S+M, S+M+H, S+M+C. Every feature set gets the same search space and trial budget.
+- Tuning points: the first test meeting of 2001, 2005, 2009, 2013, 2017, 2021 and 2025. At each, only meetings
+  before that point are used: 4 expanding time-series folds (`models.expanding_folds(n, 4)`), features
+  standardised inside each fold's training rows, early stopping on the fold's validation rows (at most 300
+  epochs, patience 20). Objective: mean validation MSE over the folds.
+- Optuna TPE sampler, seed 0, 30 trials per architecture, feature set and tuning point. Search space:
+  hidden {8, 16, 32, 64, 128, 256} (TFT: {8, 16, 32, 64}); recurrent layers {1, 2} (LSTM/GRU); attention heads
+  {1, 2, 4} (TFT); dropout 0-0.5; learning rate 1e-4 to 1e-2 (log); weight decay 1e-6 to 1e-2 (log);
+  lookback {2, 4, 8, 12} meetings; batch size {16, 32, 64}. Epochs for the final fit: the median best epoch (at least 1) of
+  the chosen trial's folds; the final fit uses all training rows with no early stopping.
+- The chosen settings are frozen until the next tuning point. Walk-forward refits every 8 meetings, 8 seeds,
+  seed-mean forecasts, as in Plan 2.
+- Tests: Diebold-Mariano on squared rate errors and Clark-West, S+M+H against S+M per architecture; McNemar on
+  accuracy. Reported with the same wording rules, as secondary evidence.
+- **Compute rule:** one trial is timed first. If the projected total exceeds 12 hours, the budget drops to 20
+  trials for every arm alike; this is decided before any tuned forecast exists.
+
+## 6. Order of work and outputs
+
+1. This document is committed. 2. Code with tests. 3. Token projection, then the Haiku batch. 4. Primary
+comparison and leak diagnostics. 5. Tuning, then tuned neural walk-forward. 6. RESULTS_STUDY4.md with every
+number, the leak section and the deviations, if any.
