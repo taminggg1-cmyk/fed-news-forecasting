@@ -80,3 +80,6 @@ A second external review (code and saved results) led to the disclosures below. 
   two layers, no dropout, learning rate 1e-4, 644 epochs). The GRU (188 units, 1 layer, 2e-4, 449 epochs)
   matches. The source of the 240/300 setting is not recorded; the Plan 2 LSTM rows should not be described as
   the paper's LSTM settings until this is resolved.
+- Study 4 v2 compute rule (design 12.8), applied 2026-10-13 before any v2 tuning: timed upper bounds were
+  about 14.3 h (CPU: LSTM and GRU, both tasks) and 25.6 h (GPU: TFT, both tasks), above 16 h, so every v2 arm
+  uses 20 Optuna trials instead of 30 (results/study4/v2_timing/).
