@@ -198,3 +198,68 @@ paper's settings. Recorded before any T1 tuning run.
   paper's own numbers (revised data) alongside.
 - Reading fixed now for (a): "tuning explains the gap" for an architecture if tuned S beats paper-settings S
   at p < 0.05 on the 308 test months; the 112-month paper window is reported but not used for the reading.
+
+## 12. Corrected network protocol, version 2 (amendment dated 2026-10-13, about 00:45)
+
+**Disclosure.** This amendment follows inspection of earlier results: the version 1 network results
+(sections 5, 10 and 11) had been seen, and an external review of the methods note found problems that affect
+both tasks. The original sections stay as written; version 1 outputs are kept in
+`results/study4/superseded_v1/` as superseded exploratory results. Version 2 replaces them for every network
+result. The ordered-logit results (section 4, section 8) are not affected.
+
+12.1 **Monthly cutoff.** For month t the forecast is made at 00:00 America/New_York at the start of the second
+US business day of month t (business days: weekdays that are not US federal holidays, pandas
+USFederalHolidayCalendar). Every input must be dated before that day: market prices (last value dated before
+it), ALFRED vintages (published before it), Fed documents and the Beige Book (released before it), daily
+indices (as before, three days earlier). The text window for month t runs from month t-1's cutoff to month
+t's. FEDFUNDS(t-1), used as an input and as the base of the level forecast, is the monthly average of daily
+effective rates; the last one (for the last business day of t-1) is published by the New York Fed at about
+9:00 ET on the first business day of t, before the cutoff. Before March 2016 the daily effective rate appeared
+in the Board's H.15 release; its exact posting time is not verified, so the cutoff leaves one full business
+day of margin. The monthly panel is rebuilt with these cutoffs as a new file (`t1b`); the version 1 panel
+(`t1`, first calendar day) is left unchanged.
+
+12.2 **Identical validation folds.** At each tuning point, the validation rows are the same for every
+candidate: the rows from (longest lookback in the search space - 1) up to the point (monthly: up to the point
+minus one), split into 5 equal blocks; fold k trains on rows before block k+1 (monthly: before it minus one,
+the t-2 rule) and validates on block k+1, for k = 1..4. A candidate's training rows are those rows with enough
+history for its lookback. A candidate is infeasible (scored as infinite) if any fold has fewer than 10
+training sequences.
+
+12.3 **Score in rate units.** Each fold's best validation MSE is converted back to rate units (multiplied by
+the fold's target variance) before averaging over folds. Early stopping inside a fold is unchanged (the same
+epoch minimises both).
+
+12.4 **Strict real-time arms.** In addition to the version 1 inputs (mixed vintage, disclosed fallback), each
+task gets arms that use only series whose ALFRED vintages cover every row (policy rate, M2 monthly and yearly,
+payroll change, nominal GDP, CPI, the two yield slopes; plus the market block in the meeting task), with no
+fallback value anywhere in tuning, training or prediction: strict base, strict + ChronoBERT, strict + Haiku.
+
+12.5 **Arms.** Per task and architecture: base, base + ChronoBERT, base + Haiku, placebo-ChronoBERT,
+placebo-Haiku (mixed vintage) and the three strict arms: 8 arms x 3 architectures x 2 tasks. The placebo
+(circular shift, section 10) is a retrospective negative control only, not proof of the absence of leakage.
+The transformer is described as a TFT-inspired single-horizon model.
+
+12.6 **Evaluation.** Primary comparisons, fixed now: in each task and architecture, base + ChronoBERT against
+base, and base + Haiku against base (mixed vintage); Holm across the six within a task. Test: one-sided test
+that the mean squared-error difference is positive, Newey-West standard errors with lags equal to the refit
+interval (8 meetings, 12 months); paired moving-block bootstrap (same block length, 10,000 draws, seed 0) for
+the squared-error and accuracy differences as robustness; HLN-DM and McNemar counts reported as descriptive.
+Clark-West is dropped for the networks (separately tuned networks are not nested). The strict arms repeat the
+two primary comparisons as robustness; placebo arms are reported as diagnostics. Meeting task: the primary
+evaluation uses scheduled meetings only; all meetings are also reported, and forecasts for the unscheduled
+decisions are described as conditional on the event date. Decision claims (cut, hold, hike) use the meeting
+task only, with accuracy, balanced accuracy, recall by class and confusion matrices; the monthly task is a
+rate-forecasting task (RMSE, MAE, MBE), and its direction classes are labelled as monthly average-rate
+changes. Settings question (section 11): tuned strict-or-mixed base against Plan 2's paper-settings S forecasts
+is reported descriptively, noting that Plan 2's LSTM settings do not match the paper version read on
+2026-10-12 and that Plan 2 used the version 1 monthly cutoff.
+
+12.7 **Verification before the batch.** (a) The cutoff rule against known calendars (holidays on the first
+business days); (b) the monthly fold gap and identical validation rows across candidate lookbacks; (c)
+rate-unit scoring; (d) end-to-end truncation: rebuilding sampled rows' features from raw inputs truncated at
+their cutoff gives the stored features, and forecasting a row with later rows removed gives the same forecast.
+
+12.8 **Compute.** LSTM and GRU arms run on the CPU and TFT arms on the GPU in parallel. One trial per
+architecture and task is timed first; if the projected wall time exceeds 16 hours, every arm uses 20 trials
+instead of 30.
