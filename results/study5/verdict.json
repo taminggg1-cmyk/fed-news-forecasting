@@ -1,0 +1,100 @@
+{
+  "panel": {
+    "3": {
+      "n_rows": 257,
+      "n_test": 204,
+      "first_test": "2001-01-31",
+      "last_test": "2026-06-17",
+      "classes": {
+        "0": 44,
+        "1": 105,
+        "2": 55
+      },
+      "days_min_median_max": [
+        71,
+        92.0,
+        107
+      ]
+    },
+    "2": {
+      "n_rows": 258,
+      "n_test": 205,
+      "first_test": "2001-01-31",
+      "last_test": "2026-07-29",
+      "classes": {
+        "0": 36,
+        "1": 119,
+        "2": 50
+      },
+      "days_min_median_max": [
+        35,
+        44.0,
+        59
+      ]
+    },
+    "1": {
+      "n_rows": 259,
+      "n_test": 206,
+      "first_test": "2001-01-31",
+      "last_test": "2026-09-16",
+      "classes": {
+        "0": 28,
+        "1": 140,
+        "2": 38
+      },
+      "days_min_median_max": [
+        1,
+        1.0,
+        1
+      ]
+    }
+  },
+  "primary": {
+    "n": 204,
+    "mean": -0.06010913521892777,
+    "se": 0.04730147022819743,
+    "p_one_sided": 0.8980941781584993,
+    "ci90": [
+      -0.13792005374431254,
+      0.017701783306456997
+    ]
+  },
+  "placebo_p": 0.8882918026416227,
+  "shuffled_p": 0.9984531629214328,
+  "decision": "not supported",
+  "wording": "no detectable improvement at three months in this data, with this reader and horizon",
+  "effect": "gains of 0.02 or more are ruled out by the stated threshold",
+  "robustness": {
+    "hln_dm_h3_p": 0.9187507186423013,
+    "block_bootstrap_8": {
+      "mean": -0.060109135218927745,
+      "ci90": [
+        -0.13966746484817363,
+        0.004356194769447481
+      ],
+      "share_at_or_below_zero": 0.9138
+    }
+  },
+  "secondary_p": {
+    "B+H h3": 0.3001001660035456,
+    "B+C+Beige h3": 0.695548766393935,
+    "B+C h2": 0.32296699488536096,
+    "B+H h2": 0.013511743011665023
+  },
+  "secondary_holm": {
+    "B+H h2": 0.05404697204666009,
+    "B+H h3": 0.9003004980106368,
+    "B+C h2": 0.9003004980106368,
+    "B+C+Beige h3": 0.9003004980106368
+  },
+  "h1_reference": {
+    "n": 206,
+    "mean": -0.012647931196689883,
+    "se": 0.01624238813155174,
+    "p_one_sided": 0.7819214737291404,
+    "ci90": [
+      -0.0393666596730925,
+      0.014070797279712733
+    ]
+  }
+}

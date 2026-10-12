@@ -1,0 +1,6 @@
+group,n,base_correct,new_correct,net
+cut,44,20,16,-4
+hold,105,89,88,-1
+hike,55,37,37,0
+turning point,26,10,10,0
+all,204,146,141,-5
