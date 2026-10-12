@@ -114,3 +114,10 @@ TFT used default sizes). They stay in the results only as labelled reference row
 1. This document is committed. 2. Code with tests. 3. Token projection, then the Haiku batch. 4. Primary
 comparison and leak diagnostics. 5. Tuning, then tuned neural walk-forward. 6. RESULTS_STUDY4.md with every
 number, the leak section and the deviations, if any.
+
+## 7. Amendments (each recorded before the step it affects)
+
+7.1 (before submitting the batch). The token projection (results/study4/token_projection.json) is 23,980,280
+tokens: 1,544 input tokens per request on average over 200 counted requests, 13,750 requests, plus 8 output
+tokens per sentence. That exceeds the 20,000,000 limit, so nothing was submitted and the user was asked. The
+user allowed the full corpus; the limit is now 25,000,000. Nothing else changes.
