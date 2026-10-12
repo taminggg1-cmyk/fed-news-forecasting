@@ -8,6 +8,8 @@ S = the paper's Table 1 statistics, real-time; M = our market block; t_u3 feeds 
 """
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 
 from fed_news import alfred, config, market
 from fed_news.meetings import load_meetings
@@ -95,6 +97,35 @@ def build_t1(daily, fedfunds, alfred_obs) -> pd.DataFrame:
     frame = pd.DataFrame.from_dict(rows, orient="index").sort_index()
     frame["y_class"] = _classes(frame["y_change"])
     return frame
+
+
+_BDAY = CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+
+def second_business_day(month_start: pd.Timestamp) -> pd.Timestamp:
+    """Study 4 v2 monthly cutoff: 00:00 New York time at the start of the second US business day of the month."""
+    return _BDAY.rollforward(pd.Timestamp(month_start)) + _BDAY
+
+
+def build_t1b(daily, fedfunds, alfred_obs) -> pd.DataFrame:
+    """T1 rows with the Study 4 v2 cutoff (design section 12.1): inputs dated before the second business day of
+    month t, by which time FEDFUNDS(t-1) has been published; the text window starts at month t-1's cutoff."""
+    rows = {}
+    for t in fedfunds.loc[config.SAMPLE_START:].index:
+        prev = t - pd.DateOffset(months=1)
+        if prev not in fedfunds.index:
+            continue
+        rows[t] = _row(second_business_day(t), second_business_day(prev), float(fedfunds[t]), float(fedfunds[prev]),
+                       daily, alfred_obs)
+    frame = pd.DataFrame.from_dict(rows, orient="index").sort_index()
+    frame["y_class"] = _classes(frame["y_change"])
+    return frame
+
+
+def build_t1b_panel() -> pd.DataFrame:
+    t1b = build_t1b(market.load_daily(), market.load_fedfunds(), alfred.load_all())
+    t1b.to_pickle(config.DATA / "t1b.pkl")
+    return t1b
 
 
 def build_t2(meet, daily, alfred_obs) -> pd.DataFrame:

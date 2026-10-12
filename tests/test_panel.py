@@ -56,3 +56,24 @@ def test_market_at_uses_target_before_cutoff():
     assert out["s_slope_10y2y"] == pytest.approx(0.2)
     assert out["s_slope_1y6m"] == pytest.approx(0.1)
     assert out["m_zero_bound"] == 0
+
+
+def test_second_business_day_skips_weekends_and_federal_holidays():
+    from fed_news.panel import second_business_day
+    assert second_business_day(pd.Timestamp("2025-09-01")) == pd.Timestamp("2025-09-03")  # Mon 1st Labor Day
+    assert second_business_day(pd.Timestamp("2022-01-01")) == pd.Timestamp("2022-01-04")  # Sat 1st
+    assert second_business_day(pd.Timestamp("2025-02-01")) == pd.Timestamp("2025-02-04")  # Sat 1st
+    assert second_business_day(pd.Timestamp("2026-10-01")) == pd.Timestamp("2026-10-02")  # Thu 1st
+    assert second_business_day(pd.Timestamp("2024-01-01")) == pd.Timestamp("2024-01-03")  # Mon 1st New Year
+
+
+def test_monthly_v2_rows_use_the_second_business_day_cutoff(monkeypatch):
+    from fed_news import panel
+    calls = []
+    monkeypatch.setattr(panel, "_row", lambda cutoff, win_start, y, lag, d, a: calls.append((cutoff, win_start)) or
+                        {"cutoff": cutoff, "win_start": win_start, "y_level": y, "y_change": y - lag, "s_rate_lag": lag})
+    ff = pd.Series([1.0, 1.1, 1.2], index=pd.to_datetime(["2025-07-01", "2025-08-01", "2025-09-01"]))
+    monkeypatch.setattr(panel.config, "SAMPLE_START", "2025-07-01")
+    out = panel.build_t1b(None, ff, None)
+    assert calls[-1] == (pd.Timestamp("2025-09-03"), pd.Timestamp("2025-08-04"))  # Fri 1 Aug, so Mon 4 Aug
+    assert list(out.index) == list(ff.index[1:])

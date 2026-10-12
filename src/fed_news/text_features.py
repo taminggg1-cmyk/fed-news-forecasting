@@ -69,11 +69,11 @@ def build_text_features(rows: pd.DataFrame, stance: pd.DataFrame, beige: pd.Seri
     return out[N_COLS]
 
 
-def attach_all() -> None:
+def attach_all(names=("t1", "t2")) -> None:
     stance = pd.read_pickle(config.DATA / "doc_stance.pkl")
     beige = beige_tones(build_corpus())
     idx = load_indices()
-    for name in ("t1", "t2"):
+    for name in names:
         rows = pd.read_pickle(config.DATA / f"{name}.pkl")
         feats = build_text_features(rows, stance, beige, idx)
         check_finite(feats)
