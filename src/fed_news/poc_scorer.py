@@ -103,7 +103,7 @@ def trim_rotary(model, n: int) -> None:
         rot.cos, rot.sin = rot.cos[:n].contiguous(), rot.sin[:n].contiguous()
 
 
-def load_chronogpt():
+def load_chronogpt(device: str = "cuda"):
     from huggingface_hub import hf_hub_download
     from fed_news.chronogpt import ChronoGPT
     repo = f"manelalab/chrono-gpt-v1-{VINTAGE}1231"
@@ -118,7 +118,7 @@ def load_chronogpt():
         torch.set_default_dtype(previous)
     model.load_state_dict(state)
     trim_rotary(model, MAX_TOKENS)
-    return model.cuda().eval()
+    return model.to(device).eval()
 
 
 def embed_chronogpt(sentences: list[str], layers=GPT_LAYERS, batch: int = 8) -> dict:

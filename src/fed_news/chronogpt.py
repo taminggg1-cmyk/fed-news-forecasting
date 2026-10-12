@@ -1,5 +1,6 @@
-# Vendored unchanged from manelalab/chrono-gpt-v1-20111231 (ChronoGPT_inference.py, MIT licence; He, Lv, Manela and Wu),
-# read in full before use on 2026-10-12. Loaded weights go through torch.load(weights_only=True) in poc_scorer.py.
+# Vendored from manelalab/chrono-gpt-v1-20111231 (ChronoGPT_inference.py, MIT licence; He, Lv, Manela and Wu),
+# read in full on 2026-10-12. Only change: the @torch.inference_mode() decorators are removed so the modules can be
+# trained (forward arithmetic unchanged). Weights are loaded with torch.load(weights_only=True) in poc_scorer.py.
 
 import os
 import json
@@ -17,7 +18,6 @@ class CastedLinear(nn.Linear):
     def __init__(self, in_features, out_features):
         super().__init__(in_features, out_features, bias=False)
 
-    @torch.inference_mode()
     def forward(self, x):
         return F.linear(x, self.weight.type_as(x))
 
@@ -31,7 +31,6 @@ class Rotary(nn.Module):
         self.register_buffer('cos', theta.cos(), persistent=False)
         self.register_buffer('sin', theta.sin(), persistent=False)
 
-    @torch.inference_mode()
     def forward(self, x):
         cos, sin = self.cos[None, :x.size(-3), None, :], self.sin[None, :x.size(-3), None, :]
         x1, x2 = x.float().chunk(2, dim=-1)
@@ -53,7 +52,6 @@ class CausalSelfAttention(nn.Module):
         self.c_proj = CastedLinear(dim, dim)
         self.register_buffer('kv_cache', None, persistent=False)
 
-    @torch.inference_mode()
     def forward(self, x, ve):
         B, T = x.size(0), x.size(1)
         
@@ -105,7 +103,6 @@ class MLP(nn.Module):
         self.c_proj = CastedLinear(4 * dim, dim)
         self.c_proj.weight.data.zero_()
 
-    @torch.inference_mode()
     def forward(self, x):
         x = self.c_fc(x)
         x = F.relu(x).square()
@@ -119,7 +116,6 @@ class Block(nn.Module):
         self.mlp = MLP(model_dim)
         self.lambdas = nn.Parameter(torch.tensor([1., 0.]))
 
-    @torch.inference_mode()
     def forward(self, x, ve, x0):
         x = self.lambdas[0] * x + self.lambdas[1] * x0
         if self.attn is not None:
@@ -160,7 +156,6 @@ class ChronoGPT(nn.Module, PyTorchModelHubMixin):
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
-    @torch.inference_mode()
     def forward(self, inputs, past_key_values=None):
         # Remove fixed batch size assumption
         B = inputs.size(0)  # Get batch size from input tensor
