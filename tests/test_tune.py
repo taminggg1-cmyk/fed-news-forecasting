@@ -67,3 +67,18 @@ def test_run_tuned_uses_the_settings_of_the_latest_point_and_forecasts_every_tes
                          on_refit=lambda i, s: used.append((i, s["lookback"])))
     assert len(out) == 30 and np.isfinite(out["y_pred"]).all()
     assert (30, 2) in used and (45, 4) in used and all(i < 45 or lb == 4 for i, lb in used)
+
+
+def test_placebo_panel_shifts_only_the_stance_columns_by_half_the_rows():
+    df = _df(10).assign(n_stance=np.arange(10.0), n_stance_chg=np.arange(10.0) * 2)
+    out = tune.placebo_panel(df)
+    assert out["n_stance"].tolist() == [5.0, 6, 7, 8, 9, 0, 1, 2, 3, 4]
+    assert out["n_stance_chg"].tolist() == (np.roll(np.arange(10.0) * 2, 5)).tolist()
+    assert out.drop(columns=["n_stance", "n_stance_chg"]).equals(df.drop(columns=["n_stance", "n_stance_chg"]))
+
+
+def test_placebo_arms_use_the_real_columns_and_the_comparisons_cover_both_questions():
+    for reader in ("C", "H"):
+        assert tune.FEATURES[f"placebo-{reader}"][1] == tune.FEATURES[f"S+M+{reader}"][1]
+        assert tune.FEATURES[f"placebo-{reader}"][0] == reader + "p"
+        assert (f"placebo-{reader}", "S+M") in tune.PAIRS and (f"S+M+{reader}", f"placebo-{reader}") in tune.PAIRS

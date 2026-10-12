@@ -27,8 +27,19 @@ ARCHS = ("lstm", "gru", "tft")
 YEARS = (2001, 2005, 2009, 2013, 2017, 2021, 2025)
 N_TRIALS, N_FOLDS, MAX_EPOCHS, PATIENCE, REFIT_EVERY, SEEDS = 30, 4, 300, 20, 8, tuple(range(8))
 D = ["n_stance", "n_stance_chg"]
-FEATURES = {"S+M": ("H", S_COLS + M_COLS), "S+M+H": ("H", S_COLS + M_COLS + D), "S+M+C": ("C", S_COLS + M_COLS + D)}
+FEATURES = {"S+M": ("H", S_COLS + M_COLS), "S+M+H": ("H", S_COLS + M_COLS + D), "S+M+C": ("C", S_COLS + M_COLS + D),
+            # design section 10: the same columns with the stance shifted circularly by half the panel
+            "placebo-C": ("Cp", S_COLS + M_COLS + D), "placebo-H": ("Hp", S_COLS + M_COLS + D)}
+PAIRS = [("S+M+C", "S+M"), ("S+M+H", "S+M"), ("placebo-C", "S+M"), ("placebo-H", "S+M"),
+         ("S+M+C", "placebo-C"), ("S+M+H", "placebo-H")]  # (model, the model it is tested against)
 OUT = config.RESULTS / "study4" / "neural"
+
+
+def placebo_panel(df: pd.DataFrame, cols=D) -> pd.DataFrame:
+    out = df.copy()
+    for c in cols:
+        out[c] = np.roll(df[c].to_numpy(), len(df) // 2)
+    return out
 
 
 def tuning_points(dates, years=YEARS, test_start=config.TEST_START) -> list[int]:
@@ -142,10 +153,11 @@ def _settings_path(arch, fs):
     return OUT / f"settings_{arch}_{fs}.json"
 
 
-def tune_all(pan: dict, device: str, n_trials: int = N_TRIALS) -> None:
+def tune_all(pan: dict, device: str, n_trials: int = N_TRIALS, archs=ARCHS, features=tuple(FEATURES)) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    for arch in ARCHS:
-        for fs, (which, cols) in FEATURES.items():
+    for arch in archs:
+        for fs in features:
+            which, cols = FEATURES[fs]
             df = pan[which]
             path = _settings_path(arch, fs)
             done = {int(k): v for k, v in json.loads(path.read_text()).items()} if path.exists() else {}
@@ -177,9 +189,11 @@ def time_trial(pan: dict, device: str) -> dict:
 
 
 def forecast_all(pan: dict, device: str, archs=ARCHS) -> pd.DataFrame:
-    rows, preds = [], {}
+    rows, comps, preds = [], [], {}
     for arch in archs:
         for fs, (which, cols) in FEATURES.items():
+            if not _settings_path(arch, fs).exists():
+                continue
             df = pan[which]
             settings = {int(k): v for k, v in json.loads(_settings_path(arch, fs).read_text()).items()}
             frames = []
@@ -193,19 +207,20 @@ def forecast_all(pan: dict, device: str, archs=ARCHS) -> pd.DataFrame:
             ens["class_pred"] = models.classes_from_change(ens["y_pred"].to_numpy() - ens["lag"].to_numpy())
             ens.to_csv(OUT / f"preds_{arch}_{fs}.csv", index=False)
             preds[(arch, fs)] = ens
-        base = preds[(arch, "S+M")]
-        for fs in FEATURES:
-            p = preds[(arch, fs)]
-            row = {"arch": arch, "features": fs, **metrics(p)}
-            if fs != "S+M":
-                fixes, breaks, p_mc = mcnemar_greater(base["class_pred"] == base["class_true"],
-                                                      p["class_pred"] == p["class_true"])
-                row.update({**compare(base, p), "mcnemar_fixes": fixes, "mcnemar_breaks": breaks, "mcnemar_p": p_mc})
-            rows.append(row)
-    table = pd.DataFrame(rows)
-    table.to_csv(OUT / "comparison_neural_T2.csv", index=False)
-    print(table.round(4).to_string(index=False), flush=True)
-    return table
+            rows.append({"arch": arch, "features": fs, **metrics(ens)})
+        for new, base in PAIRS:
+            if (arch, new) in preds and (arch, base) in preds:
+                b, p = preds[(arch, base)], preds[(arch, new)]
+                fixes, breaks, p_mc = mcnemar_greater(b["class_pred"] == b["class_true"], p["class_pred"] == p["class_true"])
+                comps.append({"arch": arch, "model": new, "against": base, **compare(b, p),
+                              "mcnemar_fixes": fixes, "mcnemar_breaks": breaks, "mcnemar_p": p_mc})
+    table, comp = pd.DataFrame(rows), pd.DataFrame(comps)
+    table.to_csv(OUT / "metrics_neural_T2.csv", index=False)
+    comp.to_csv(OUT / "comparison_neural_T2.csv", index=False)
+    pd.set_option("display.width", 200)
+    print(table.round(4).to_string(index=False))
+    print(comp.round(4).to_string(index=False), flush=True)
+    return comp
 
 
 def main(argv=None) -> None:
@@ -215,6 +230,7 @@ def main(argv=None) -> None:
     ap.add_argument("--trials", type=int, default=N_TRIALS)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--archs", nargs="+", default=list(ARCHS), choices=ARCHS)
+    ap.add_argument("--features", nargs="+", default=list(FEATURES), choices=list(FEATURES))
     args = ap.parse_args(argv)
     if args.step == "time":
         from fed_news.naive_stance import naive_panel
@@ -222,8 +238,9 @@ def main(argv=None) -> None:
         time_trial({"C": common_rows(naive_panel("t2", pd.read_pickle(config.DATA / "doc_stance.pkl")))}, args.device)
         return
     pan = panels()
+    pan["Cp"], pan["Hp"] = placebo_panel(pan["C"]), placebo_panel(pan["H"])
     if args.step == "tune":
-        tune_all(pan, args.device, args.trials)
+        tune_all(pan, args.device, args.trials, args.archs, args.features)
     else:
         forecast_all(pan, args.device, args.archs)
 
