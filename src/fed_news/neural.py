@@ -87,7 +87,8 @@ def fit_early_stopping(model, X, y, lr: float, max_epochs: int, patience: int, v
             raise ValueError("non-finite validation loss")
         return v
 
-    # The untrained weights count as epoch 0, so the result is never worse than the start.
+    # The untrained weights count as epoch 0, so the result is never worse than the start on the validation rows.
+    # Epoch 0 is a random network, not a zero output: a hybrid that keeps it still adds an untrained correction.
     best, best_state, wait = val_loss(), copy.deepcopy(model.state_dict()), 0
     best_epoch = 0
     for epoch in range(1, max_epochs + 1):
