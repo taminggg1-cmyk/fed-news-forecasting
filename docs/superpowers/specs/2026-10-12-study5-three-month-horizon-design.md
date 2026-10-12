@@ -89,16 +89,20 @@ All at h = 3; B, B+C and B+H also at h = 2; B and B+C at h = 1 (descriptive).
 ## 6. Tests and verdict
 
 - Loss: per-row log loss of the true class. **Primary quantity**: the mean log-loss difference d = loss(B) -
-  loss(B+C) over the test rows (positive favours news), with a 90% confidence interval.
+  loss(B+C) over the test rows (no-news loss minus news loss: positive means news helps), with a two-sided 90%
+  confidence interval computed from the same Newey-West standard error (mean +/- 1.645 SE), so it agrees with
+  the one-sided test at 0.05.
 - **Primary test**: one-sided test that the mean of d is positive, using a Newey-West HAC standard error
-  (Bartlett kernel, 8 lags: one year of scheduled meetings, more than the h-1 = 2 lags that overlap alone
-  implies) and the normal distribution. Robustness, reported: Harvey-Leybourne-Newbold Diebold-Mariano with
+  (Bartlett kernel, 8 lags: 8 scheduled meetings, about one year since spacing varies; more than the h-1 = 2
+  lags that overlap alone implies) and the normal distribution. Robustness, reported: Harvey-Leybourne-Newbold Diebold-Mariano with
   h = 3, and a moving-block bootstrap (blocks of 8 rows, 10,000 draws, seed 0).
 - **Verdict** (`evaluate.decide`): "void" if placebo-C beats B at p < 0.05 or shuffled-C at p < 0.01 (same
   test); otherwise "supported" if the primary p < 0.05, else "not supported".
 - **Smallest effect of interest**: a mean log-loss gain of 0.02 per row (about the one-meeting Haiku gain in
-  Study 4, about 7% of that baseline's loss). If not supported: "smaller than meaningful" only if the 90%
-  interval's upper bound is below 0.02; otherwise "inconclusive".
+  Study 4, about 7% of that baseline's loss). If the 90% interval's upper bound is below 0.02: "gains of 0.02
+  or more are ruled out by the stated threshold". If not supported and the upper bound is 0.02 or more:
+  "inconclusive". If supported, the lower bound is compared with 0.02 too: a significant gain can still be
+  smaller than the threshold.
 - Secondary tests (B+H and B+C+Beige at h = 3; B+C and B+H at h = 2), same Newey-West test, Holm-adjusted
   across these four; they never replace the primary result.
 - Reported without rules: accuracy, Brier, correct counts by class and at turning points, and the h = 1
@@ -108,6 +112,7 @@ All at h = 3; B, B+C and B+H also at h = 2; B and B+C at h = 1 (descriptive).
   this is not a win over market expectations measured by fed funds futures". Not supported: "no detectable
   improvement at three months in this data, with this reader and horizon", followed by the
   smallest-effect statement above.
+- A real bug found after the run may be fixed and the run repeated; the reason and both results are recorded.
 
 ## 7. Limitations stated before the run
 
@@ -134,3 +139,7 @@ promising horizon (section 1); the target is defined as the net cumulative chang
 (section 2); market-data and reader-knowledge wording corrected (sections 3 and 7); the primary inference is
 fixed exactly (Newey-West, 8 lags; HLN-DM and block bootstrap as robustness) and a smallest effect of interest
 added (section 6). The training-row rule of section 4 (labels known before the cutoff, purged CV) is unchanged.
+
+Second clarification (same day, before any code): d's sign stated; the 90% interval tied to the Newey-West
+standard error; the smallest-effect wording made exact; "8 lags" described as 8 scheduled meetings; bug fixes
+allowed with a record.
