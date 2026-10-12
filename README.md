@@ -481,11 +481,12 @@ midpoint, so its flat stretches sit slightly higher.
 ## 13. Reproducing the study
 
 **Environment.** Python 3.13 with CUDA PyTorch 2.11, transformers 5.17, pandas 3.0, numpy 2.3, scikit-learn 1.8,
-statsmodels 0.14, scipy 1.17, matplotlib, BeautifulSoup, lxml, pypdf, pysentiment2, tabulate, pytest. Exact
+statsmodels 0.14, scipy 1.17, anthropic 1.13 and optuna 4.5 (Study 4), matplotlib, BeautifulSoup, lxml, pypdf, pysentiment2, tabulate, pytest. Exact
 versions: `results/pip_freeze.txt`. GPU used: RTX 2060 6 GB (stance training needs about 12.5 GB of system RAM).
 
 **Keys** (never committed; stored under `<data root>/secrets/`):
 - `fred_api_key.txt`: free FRED API key (https://fred.stlouisfed.org/docs/api/api_key.html).
+- `anthropic_api_key.txt`: Anthropic API key (Study 4 and the proof-of-concept runs; paid, small amounts).
 - `fraser_api_key.txt`: free FRASER API key, requested with `curl --data '{"email": "...", "description": "..."}' https://fraser.stlouisfed.org/api/api_key` (Study 2 only).
 
 **Run order** (from the repository root, `PYTHONPATH=src`; data root `D:/fed_news` or `FED_NEWS_DATA`):
