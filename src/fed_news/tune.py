@@ -176,9 +176,9 @@ def time_trial(pan: dict, device: str) -> dict:
     return res
 
 
-def forecast_all(pan: dict, device: str) -> pd.DataFrame:
+def forecast_all(pan: dict, device: str, archs=ARCHS) -> pd.DataFrame:
     rows, preds = [], {}
-    for arch in ARCHS:
+    for arch in archs:
         for fs, (which, cols) in FEATURES.items():
             df = pan[which]
             settings = {int(k): v for k, v in json.loads(_settings_path(arch, fs).read_text()).items()}
@@ -214,6 +214,7 @@ def main(argv=None) -> None:
     ap.add_argument("step", choices=["time", "tune", "forecast"])
     ap.add_argument("--trials", type=int, default=N_TRIALS)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--archs", nargs="+", default=list(ARCHS), choices=ARCHS)
     args = ap.parse_args(argv)
     if args.step == "time":
         from fed_news.naive_stance import naive_panel
@@ -224,7 +225,7 @@ def main(argv=None) -> None:
     if args.step == "tune":
         tune_all(pan, args.device, args.trials)
     else:
-        forecast_all(pan, args.device)
+        forecast_all(pan, args.device, args.archs)
 
 
 if __name__ == "__main__":
