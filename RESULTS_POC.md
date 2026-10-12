@@ -121,3 +121,23 @@ the labels is the fuzzy part, which also caps the trained scorers. LLM labelling
 1,776 tokens for 300 sentences, about the same as attempt 1 (1,704): with adaptive thinking Haiku chose not to
 think on this task, so attempt 2 effectively re-measured the same setup on new sentences. Over both samples
 (600 sentences) agreement is about 0.665.
+
+## 6. Haiku as a direct scorer: leak tests (step 1)
+
+Design: `docs/superpowers/specs/2026-10-12-poc-haiku-leak-design.md`. Sentences masked (years, months, numbers,
+official names, named events), sent without date or source, years mixed in each request. 222,303 input and
+19,997 output tokens.
+
+**Test A (can Haiku date masked sentences?): masking passes the rule** - 38.7% of 300 guesses within 2 years
+(fail line 50%; a constant median-year guess gets 12%); median error 4 years (constant guess 7.5). Masking hides
+part of the era, not all of it.
+
+**Test B (hindsight): flag raised.** All 3,074 human-labelled sentences (2,709 with a saved ChronoBERT score;
+232 next meetings). OLS of the next decision's direction on the human label, Haiku's label and ChronoBERT's score
+(standardised), errors clustered by meeting: Haiku 0.081 (p < 0.001), ChronoBERT -0.032 (p = 0.06), human 0.094;
+Haiku minus ChronoBERT 0.112, p = 0.00005. Simple correlations with the next decision: human labels 0.168,
+Haiku 0.172, ChronoBERT 0.067. Haiku agrees with the human labels on 0.668 of sentences.
+
+Reading: on the same masked text, Haiku's labels line up with what the Fed did next more than a leak-free model's
+scores do, beyond what the human reading explains. This is either better reading or hindsight, and the test
+cannot tell which. Under the design, any later Haiku-based forecast must carry this flag.

@@ -1,0 +1,32 @@
+{
+  "model": "claude-haiku-5-5",
+  "n_names_masked": 26,
+  "test_a": {
+    "n": 300,
+    "n_unanswered": 0,
+    "share_within_2y": 0.38666666666666666,
+    "median_abs_error": 4.0,
+    "baseline_share_within_2y": 0.12,
+    "baseline_median_abs_error": 7.5,
+    "masking_fails": false
+  },
+  "test_b": {
+    "n_labels": 3074,
+    "n_haiku_missing": 0,
+    "n_chrono_missing": 365,
+    "n": 2709,
+    "n_meetings": 232,
+    "coef_human": 0.09410218596882826,
+    "coef_haiku": 0.08064200973039681,
+    "coef_chrono": -0.03153811936201781,
+    "p_haiku": 5.925430802963158e-07,
+    "p_chrono": 0.059298745520089555,
+    "haiku_minus_chrono": 0.11218012909241462,
+    "p_difference": 5.060439761665196e-05,
+    "flag": true
+  },
+  "tokens": {
+    "input": 222303,
+    "output": 19997
+  }
+}
