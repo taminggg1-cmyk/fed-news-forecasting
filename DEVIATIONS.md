@@ -83,3 +83,18 @@ A second external review (code and saved results) led to the disclosures below. 
 - Study 4 v2 compute rule (design 12.8), applied 2026-10-13 before any v2 tuning: timed upper bounds were
   about 14.3 h (CPU: LSTM and GRU, both tasks) and 25.6 h (GPU: TFT, both tasks), above 16 h, so every v2 arm
   uses 20 Optuna trials instead of 30 (results/study4/v2_timing/).
+
+### Exploratory pooled news test (recorded 2026-10-13, about 14:00, before running it)
+
+Added after seeing the v2 LSTM and GRU results (the user noted that the LSTM's news versions mostly point the
+right way), so it is exploratory, chosen post hoc, and outside the Holm family of the primary comparisons.
+- For each network (LSTM, GRU) and task, the per-row loss differential is the squared error of the no-news
+  model minus that of the news model, in rate units, for the four news-vs-no-news pairs: normal + ChronoBERT,
+  normal + Haiku (against the normal no-news model), strict + ChronoBERT, strict + Haiku (against the strict
+  no-news model). The pooled differential is the row-wise mean of the four; positive favours news.
+- Test: one-sided Newey-West test of its mean (lags = the refit interval: 8 meetings, 12 months) and a
+  moving-block bootstrap 90% interval (same block, 10,000 draws, seed 0). Also by reader (the two ChronoBERT
+  pairs, the two Haiku pairs) and the count of pairs whose mean differential is positive.
+- Subsets: scheduled meetings (main) and all meetings for the meeting task; all test months (main) and the
+  2016-2025 paper window for the monthly task; plus test rows before 2016 vs from 2016 for both tasks.
+- TFT is excluded until its forecasts finish. Results: results/study4/exploratory_pooled_news.json.
