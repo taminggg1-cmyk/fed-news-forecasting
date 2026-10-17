@@ -15,4 +15,4 @@
   refit every 12 months or 8 meetings.
 - Files: `preds_<task>_<spec>_seed<k>.csv` (one seed), `preds_<task>_<spec>.csv` (mean of 8 seeds, the reported
   forecast), `ensemble_metrics.csv` (RMSE, MAE, accuracy), `tests.csv` (DM and McNemar p, Holm over the 15
-  registered H2 tests), `run_log.json`. Report: `RESULTS_H2A.md`.
+  registered H2 tests), `run_log.json`. Report: `docs/reports/RESULTS_H2A.md`.
