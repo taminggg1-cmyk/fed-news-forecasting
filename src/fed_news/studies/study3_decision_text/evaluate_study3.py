@@ -4,9 +4,9 @@ import hashlib
 import pandas as pd
 
 from fed_news import config
-from fed_news.decision_text import OSF_NAME, OUT_PATH, RESULTS, TAG
-from fed_news.evaluate import _git, metrics
-from fed_news.study3 import decide_h7, power_sentence
+from fed_news.studies.study3_decision_text.decision_text import OSF_NAME, OUT_PATH, RESULTS, TAG
+from fed_news.evaluation.evaluate import _git, metrics
+from fed_news.studies.study3_decision_text.study3 import decide_h7, power_sentence
 
 MODELS = ("S", "S+D", "placebo", "shuffled-text", "S+M", "S+M+D", "S+N")
 

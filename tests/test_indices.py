@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import indices
+from fed_news.collect import indices
 
 
 def test_window_mean_excludes_last_lag_days_and_cutoff():

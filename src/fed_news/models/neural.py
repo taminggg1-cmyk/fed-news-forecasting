@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from fed_news.tft import CompactTFT
+from fed_news.models.tft import CompactTFT
 
 
 class RNNRegressor(nn.Module):

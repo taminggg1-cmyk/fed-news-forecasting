@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import event_study as es
+from fed_news.studies.plan5_event_study import event_study as es
 
 
 def synthetic(n=400, slope=5.0, seed=0):

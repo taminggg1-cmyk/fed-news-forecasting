@@ -11,8 +11,9 @@ import pandas as pd
 from pandas.tseries.holiday import USFederalHolidayCalendar
 from pandas.tseries.offsets import CustomBusinessDay
 
-from fed_news import alfred, config, market
-from fed_news.meetings import load_meetings
+from fed_news.collect import alfred, market
+from fed_news import config
+from fed_news.collect.meetings import load_meetings
 
 S_COLS = ["s_rate_lag", "s_m2_mom", "s_m2_yoy", "s_pce_yoy", "s_pce_core_yoy", "s_payems_chg",
           "s_earn_yoy", "s_gdp_yoy", "s_u6_mom", "s_u6_yoy", "s_ppi_yoy", "s_cpi_yoy",

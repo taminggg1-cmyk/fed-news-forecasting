@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import panel, text_features as tf
+from fed_news.features import panel, text_features as tf
 
 T = pd.Timestamp
 

@@ -12,8 +12,9 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 
-from fed_news import config, models
-from fed_news.panel import M_COLS, N_COLS, S_COLS, TAYLOR_COLS
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.features.panel import M_COLS, N_COLS, S_COLS, TAYLOR_COLS
 
 
 @dataclass

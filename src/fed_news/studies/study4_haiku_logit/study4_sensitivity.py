@@ -12,11 +12,11 @@ import pandas as pd
 from scipy import stats
 
 from fed_news import config
-from fed_news.evaluate import metrics
-from fed_news.haiku_compare import RESULTS, log_loss, panels
-from fed_news.panel import M_COLS, S_COLS
-from fed_news.stats_tests import dm_hln, mcnemar_greater
-from fed_news.walkforward import Spec, run_spec
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.study4_haiku_logit.haiku_compare import RESULTS, log_loss, panels
+from fed_news.features.panel import M_COLS, S_COLS
+from fed_news.evaluation.stats_tests import dm_hln, mcnemar_greater
+from fed_news.models.walkforward import Spec, run_spec
 
 OUT = RESULTS / "sensitivity"
 FALLBACK_COLS = ["s_earn_yoy", "s_u6_mom", "s_u6_yoy", "s_hpi_yoy"]  # earnings, U6, house prices: vintages from 2011-12

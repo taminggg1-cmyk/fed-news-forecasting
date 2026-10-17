@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import study2_frozen as sf
+from fed_news.studies.study2_regional import study2_frozen as sf
 
 
 def synthetic(n=600, seed=0):

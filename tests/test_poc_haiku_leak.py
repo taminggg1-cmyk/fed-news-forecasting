@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import poc_haiku_leak as hl
+from fed_news.studies.poc import poc_haiku_leak as hl
 
 NAMES = {"bernanke", "kohn"}
 

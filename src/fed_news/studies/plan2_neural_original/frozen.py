@@ -16,13 +16,16 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 
-from fed_news import config, models, run_neural
-from fed_news.evaluate import metrics
-from fed_news.neural_walk import neural_ladder, prereg_h2a_ok, run_neural_spec, standardise
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.run_models import load_task
-from fed_news.stats_tests import dm_hln
-from fed_news.walkforward import prereg_ok, train_mask
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.studies.plan2_neural_original import run_neural
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan2_neural_original.neural_walk import (neural_ladder, prereg_h2a_ok, run_neural_spec,
+                                                               standardise)
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.studies.plan1_linear.run_models import load_task
+from fed_news.evaluation.stats_tests import dm_hln
+from fed_news.models.walkforward import prereg_ok, train_mask
 
 STARTS = ("2016-01-01", "2020-01-01")
 NEVER = 10 ** 9

@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import haiku_index as hi
-from fed_news import poc_llm_labels as pl
+from fed_news.features import haiku_index as hi
+from fed_news.studies.poc import poc_llm_labels as pl
 
 
 def test_chunks_cover_every_sentence_once_in_random_order():

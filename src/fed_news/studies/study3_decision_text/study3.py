@@ -13,13 +13,13 @@ import pandas as pd
 from scipy import stats
 
 from fed_news import config
-from fed_news.clark_west import compare
-from fed_news.decision_text import OUT_PATH, RESULTS, SHUFFLED_PATH, gate
-from fed_news.evaluate import metrics
-from fed_news.naive_stance import naive_panel
-from fed_news.panel import M_COLS, N_COLS, S_COLS
-from fed_news.stats_tests import dm_hln, mcnemar_greater
-from fed_news.walkforward import Spec, common_rows, run_spec
+from fed_news.evaluation.clark_west import compare
+from fed_news.studies.study3_decision_text.decision_text import OUT_PATH, RESULTS, SHUFFLED_PATH, gate
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan5_event_study.naive_stance import naive_panel
+from fed_news.features.panel import M_COLS, N_COLS, S_COLS
+from fed_news.evaluation.stats_tests import dm_hln, mcnemar_greater
+from fed_news.models.walkforward import Spec, common_rows, run_spec
 
 D = ["n_stance"]  # the decision signal lives in this column of the Study 3 panel
 Z80 = float(stats.norm.ppf(0.95) + stats.norm.ppf(0.80))

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import events as ev
+from fed_news.studies.plan5_event_study import events as ev
 
 
 def docs(rows):

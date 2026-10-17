@@ -74,53 +74,51 @@ All series start in January 1994. Rows before 2001 are used for training only.
 
 ## 2. Repository layout
 
+The code was regrouped by purpose on 2026-10-17 (branch `review-layout`). **Start with
+[`docs/REVIEW_MAP.md`](docs/REVIEW_MAP.md)**: it traces one forecast from raw source to reported p-value, gives the
+run order, and maps every headline number to its prediction file, code, test, data-vintage treatment, commit and
+status. Old module names such as `fed_news.walkforward` or `python -m fed_news.tune` still work (they load the
+moved module; see `src/fed_news/__init__.py`).
+
 ```
 src/fed_news/
-  config.py            paths (data root D:/fed_news, or env var FED_NEWS_DATA), windows, grids, seeds
-  http.py              cached HTTP downloads
-  alfred.py            ALFRED real-time vintages via the FRED API
-  market.py            daily market series (target rate, Treasury yields, VIX, oil)
-  fomc_calendar.py     Fed calendar pages
-  meetings.py          FOMC meeting set and target-rate decisions
-  corpus.py            Fed text corpus: statements, minutes, press conferences, Beige Books, speeches
-  indices.py           SF Fed news sentiment, geopolitical risk (GPR), policy uncertainty (EPU)
-  panel.py             T1 and T2 panels: targets, statistics block S, market block M, cutoffs
-  labels.py            stance labels (Trillion Dollar Words + World Central Banks), dated by source document
-  stance.py            per-year ChronoBERT stance classifiers, document stance scores
-  text_features.py     the six news features N
-  models.py            ridge helpers, penalised ordered logit, penalty selection by expanding CV
-  walkforward.py       walk-forward engine, model ladder, placebo and shuffled-label controls
-  run_models.py        runs the Plan 1 ladder
-  stats_tests.py       Diebold-Mariano (HLN), exact McNemar, Holm
-  evaluate.py          Plan 1 metrics, tests, RESULTS.md
-  tft.py               compact Temporal Fusion Transformer
-  neural.py            LSTM/GRU/TFT builders and training loops
-  neural_walk.py       neural walk-forward engine, hybrid with out-of-fold residuals
-  run_neural.py        14 neural specs x 8 seeds, resumable
-  evaluate_h2a.py      Plan 2 metrics, variance rule, tests, RESULTS_H2A.md
-  frozen.py            frozen-model analysis (train once, never update)
-  diag_tft.py          TFT best-epoch diagnostic
-  clark_west.py        Clark-West test for nested models (exploratory)
-  events.py            event days keyed by outcome trading day, stance surprise, yield changes
-  event_study.py       H5 walk-forward OLS, Clark-West, void rule
-  market_bench.py      Treasury-bill market benchmark
-  ablation.py          text feature-group ablation
-  naive_stance.py      look-ahead comparison with ModernBERT trained on all labels
-  evaluate_text.py     RESULTS_TEXT.md
-  fraser.py            FRASER (St. Louis Fed) speech texts
-  regional_corpus.py   regional Fed presidents' speeches: tenure filter, BIS, de-duplication
-  stance2.py           Study 2 classifiers trained on all eligible labels
-  study2.py            H6 and secondary analyses
-  study2_frozen.py     Study 2 frozen analysis
-  evaluate_study2.py   RESULTS_STUDY2.md
-  robustness.py        post-review exploratory checks (section 8)
-  plots.py             figures (section 12)
-tests/                 unit tests (pytest): 225 offline, plus 10 network/GPU tests deselected by default
-results/               all forecasts, metrics and test tables
-figures/               PNG figures
-docs/superpowers/      design specs, implementation plans (AI-agent workflow records)
-PREREG*.md             pre-specification documents (one per study)
-DEVIATIONS.md          every deviation, erratum and post-results note
+  config.py, http.py        paths (data root D:/fed_news or FED_NEWS_DATA), fixed settings; cached HTTP
+  collect/                  raw sources -> dated tables
+    market.py, alfred.py      daily market series; ALFRED real-time vintages
+    fomc_calendar.py, meetings.py   FOMC calendar pages; meeting set and decisions
+    corpus.py, indices.py     Fed text corpus with release dates; SF Fed / GPR / EPU indices
+    labels.py                 stance labels, dated by their source document
+    fraser.py, regional_corpus.py   Study 2 regional speeches
+  features/                 stance scores and feature panels
+    stance.py                 per-year ChronoBERT classifiers, document stance (C)
+    haiku_index.py            Claude Haiku 5.5 sentence labels, document stance (H)
+    text_features.py          the six Plan 1 news columns (N)
+    panel.py                  T1 / T2 panels: targets, S and M blocks, cutoffs (t1, t1b, t2)
+  models/                   shared model code
+    linear.py                 ridge, ordered logit, Taylor rule, penalty CV (was models.py)
+    walkforward.py            linear walk-forward engine, ladder, placebo and shuffled controls
+    neural.py, tft.py         LSTM / GRU regressors and training loops; TFT-inspired network
+  evaluation/               metrics and tests shared by all studies
+    stats_tests.py            DM-HLN, exact McNemar, Holm
+    evaluate.py               metrics, Plan 1 H1 decision, RESULTS.md
+    clark_west.py, robustness.py, plots.py
+  studies/
+    plan1_linear/             run_models.py (Plan 1 ladder)
+    plan2_neural_original/    ORIGINAL networks (H2a): neural_walk, run_neural, evaluate_h2a, frozen, diag_tft
+    plan5_event_study/        events, event_study, naive_stance, ablation, market_bench, evaluate_text
+    study2_regional/          stance2, study2, study2_frozen, evaluate_study2
+    study3_decision_text/     decision_embed, decision_text, study3, evaluate_study3 (proof of concept)
+    study4_haiku_logit/       haiku_compare (Study 4 primary), study4_sensitivity
+    study4_networks_v2/       AMENDED networks (Study 4 v2): tune, verify_v2, study4_pooled
+    study5_horizon/           study5
+    poc/                      2026-10-12 proofs of concept (statement change, scorers, Haiku leak/memory)
+tests/                      unit tests (pytest), one file per module; test_layout.py checks the old names
+results/                    all forecasts, metrics and test tables (each study folder has a README label)
+audit/                      2026-10-13 audit; verify_saved_outputs.py re-runs the linear ladders read-only
+paper/                      draft paper (main.tex, refs.bib, figures, make_figures.py)
+docs/                       REVIEW_MAP.md, RESULTS_PROVENANCE.md, design specs and plans (docs/superpowers/)
+PREREG*.md, RESULTS*.md     pre-specifications and generated reports (kept at the root, where the tags have them)
+DEVIATIONS.md               every deviation, erratum and post-results note
 ```
 
 Raw data, caches and API keys live outside the repository (default `D:/fed_news`); see section 13.
@@ -243,7 +241,7 @@ The LSTM and GRU hyperparameters are those tuned by Chan-Lau, Quach and Shi (202
 predict the level while the linear models and the TFT predict the change, so comparisons between them mix the
 architecture with the choice of target.
 
-**Compact TFT** ([`src/fed_news/tft.py`](src/fed_news/tft.py)), following Lim, Arik, Loeff and Pfister (2021):
+**Compact TFT** ([`src/fed_news/models/tft.py`](src/fed_news/models/tft.py)), following Lim, Arik, Loeff and Pfister (2021):
 
 ```
 input (batch, time, features)
@@ -314,7 +312,7 @@ pre-registered verdict.
 - **Feature ablation:** S plus each text group, and S+N minus each group (12 unadjusted comparisons).
 - **TFT diagnostic:** early stopping kept the untrained weights in 21-25% of TFT refits and 32-45% of hybrid refits, so many TFT forecasts are close to the untrained network's output.
 
-Added after an external review ([`src/fed_news/robustness.py`](src/fed_news/robustness.py), outputs in
+Added after an external review ([`src/fed_news/evaluation/robustness.py`](src/fed_news/evaluation/robustness.py), outputs in
 `results/exploratory/`):
 
 - **Linear vs deep** (`linear_vs_neural.csv`): one-sided DM tests that the linear model beats each neural ensemble with the same inputs. Linear beats LSTM, GRU, meeting LSTM and hybrid at p < 0.001 in all comparisons, and the TFT at p < 0.001 except monthly without text (p = 0.144). Caveats: the LSTM/GRU predict levels while the linear models predict changes; the meeting LSTM is worse than "always hold"; the TFT often kept untrained weights; the paper LSTM/GRU were refit every 3 months, not monthly. These comparisons say our deep set-ups are weak here, not that deep learning cannot work.
@@ -462,7 +460,7 @@ than simple linear models.
 
 ## 12. Figures
 
-Generated by `python -m fed_news.plots` from the committed forecasts. Figures 1-4 follow the layout of
+Generated by `python -m fed_news.evaluation.plots` from the committed forecasts. Figures 1-4 follow the layout of
 Chan-Lau, Quach and Shi (2025). Our "Actual" is FRED FEDFUNDS (monthly average); the paper plots the target-range
 midpoint, so its flat stretches sit slightly higher.
 
@@ -496,36 +494,47 @@ versions: `results/pip_freeze.txt`. GPU used: RTX 2060 6 GB (stance training nee
 **Run order** (from the repository root, `PYTHONPATH=src`; data root `D:/fed_news` or `FED_NEWS_DATA`):
 
 ```bash
-python -m pytest -q                                  # 225 offline tests
+python -m pytest -q                                  # offline tests (369 on 2026-10-17)
+python audit/verify_saved_outputs.py                 # re-run the linear ladders, compare with results/ (CPU, ~8 min)
 # Plan 1
-python -m fed_news.meetings                          # meeting set
-python -m fed_news.corpus                            # Fed text corpus
-python -m fed_news.panel                             # T1 / T2 panels (downloads ALFRED, market, indices)
-python -m fed_news.stance                            # per-year ChronoBERT classifiers (GPU)
-python -m fed_news.text_features                     # attach the news features
-python -m fed_news.run_models                        # model ladder
-python -m fed_news.evaluate                          # RESULTS.md
-# Plan 2
-python -m fed_news.run_neural --task all --paper-refit-every 3 --device cuda
-python -m fed_news.evaluate_h2a                      # RESULTS_H2A.md
-python -m fed_news.frozen --device cuda              # RESULTS_FROZEN.md
-python -m fed_news.clark_west                        # exploratory Clark-West
+python -m fed_news.collect.meetings                  # meeting set
+python -m fed_news.collect.corpus                    # Fed text corpus
+python -m fed_news.features.panel                    # T1 / T2 panels (downloads ALFRED, market, indices)
+python -m fed_news.features.stance                   # per-year ChronoBERT classifiers (GPU)
+python -m fed_news.features.text_features            # attach the news features
+python -m fed_news.studies.plan1_linear.run_models   # model ladder
+python -m fed_news.evaluation.evaluate               # RESULTS.md
+# Plan 2 (original networks)
+python -m fed_news.studies.plan2_neural_original.run_neural --task all --paper-refit-every 3 --device cuda
+python -m fed_news.studies.plan2_neural_original.evaluate_h2a   # RESULTS_H2A.md
+python -m fed_news.studies.plan2_neural_original.frozen --device cuda   # RESULTS_FROZEN.md
+python -m fed_news.evaluation.clark_west             # exploratory Clark-West
 # Plan 5
-python -m fed_news.event_study
-python -m fed_news.market_bench
-python -m fed_news.ablation
-python -m fed_news.naive_stance --score --compare    # GPU
-python -m fed_news.evaluate_text                     # RESULTS_TEXT.md
+python -m fed_news.studies.plan5_event_study.event_study
+python -m fed_news.studies.plan5_event_study.market_bench
+python -m fed_news.studies.plan5_event_study.ablation
+python -m fed_news.studies.plan5_event_study.naive_stance --score --compare   # GPU
+python -m fed_news.studies.plan5_event_study.evaluate_text                    # RESULTS_TEXT.md
 # Study 2
-python -m fed_news.regional_corpus                   # FRASER + BIS speeches (about 2 hours, rate-limited)
-python -m fed_news.stance2                           # GPU, about 13 hours on an RTX 2060
-python -m fed_news.study2
-python -m fed_news.study2_frozen
-python -m fed_news.evaluate_study2                   # RESULTS_STUDY2.md
+python -m fed_news.collect.regional_corpus           # FRASER + BIS speeches (about 2 hours, rate-limited)
+python -m fed_news.studies.study2_regional.stance2   # GPU, about 13 hours on an RTX 2060
+python -m fed_news.studies.study2_regional.study2
+python -m fed_news.studies.study2_regional.study2_frozen
+python -m fed_news.studies.study2_regional.evaluate_study2                    # RESULTS_STUDY2.md
+# Study 4 (Haiku index; paid API) and Study 4 v2 networks (GPU)
+python -m fed_news.features.haiku_index project|submit|collect
+python -m fed_news.studies.study4_haiku_logit.haiku_compare
+python -m fed_news.studies.study4_haiku_logit.study4_sensitivity
+python -m fed_news.studies.study4_networks_v2.tune time|tune|forecast --task T2|T1 --device cuda
+# Study 5
+python -m fed_news.studies.study5_horizon.study5
 # Post-review checks and figures
-python -m fed_news.robustness                        # results/exploratory/*.csv
-python -m fed_news.plots                             # figures/*.png
+python -m fed_news.evaluation.robustness             # results/exploratory/*.csv
+python -m fed_news.evaluation.plots                  # figures/*.png
 ```
+
+The commands recorded in the pre-registrations and results files (`python -m fed_news.run_models`,
+`python -m fed_news.tune forecast`, ...) still run the same code.
 
 Raw data are not in the repository (several hundred MB, partly third-party text). All forecasts, metrics and
 test tables are in `results/`, so every reported number can be checked without re-running the models.

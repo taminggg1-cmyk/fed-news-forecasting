@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import run_neural
+from fed_news.studies.plan2_neural_original import run_neural
 
 
 def preds(dates, y_pred, lag=2.0):

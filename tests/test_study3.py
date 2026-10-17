@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import study3 as s3
+from fed_news.studies.study3_decision_text import study3 as s3
 
 
 def preds(y_pred, y_true, seed=0):

@@ -10,17 +10,18 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from fed_news import config, stance
-from fed_news.clark_west import compare
-from fed_news.corpus import build_corpus
-from fed_news.evaluate import metrics
-from fed_news.event_study import run as run_event_study, walk_forward
-from fed_news.events import build_events, load_events
-from fed_news.labels import load_labels
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.stats_tests import dm_hln
-from fed_news.text_features import fed_stance
-from fed_news.walkforward import Spec, common_rows, run_spec
+from fed_news import config
+from fed_news.features import stance
+from fed_news.evaluation.clark_west import compare
+from fed_news.collect.corpus import build_corpus
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan5_event_study.event_study import run as run_event_study, walk_forward
+from fed_news.studies.plan5_event_study.events import build_events, load_events
+from fed_news.collect.labels import load_labels
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.evaluation.stats_tests import dm_hln
+from fed_news.features.text_features import fed_stance
+from fed_news.models.walkforward import Spec, common_rows, run_spec
 
 NAIVE_MODEL = "answerdotai/ModernBERT-base"
 OUT_PATH = config.DATA / "doc_stance_naive.pkl"

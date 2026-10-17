@@ -16,9 +16,9 @@ import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
 
 from fed_news import config
-from fed_news.chronogpt import norm
-from fed_news.poc_scorer import MAX_TOKENS, SPLIT_YEAR, VINTAGE, evaluate, load_chronogpt, passed, split
-from fed_news.stats_tests import mcnemar_greater
+from fed_news.studies.poc.chronogpt import norm
+from fed_news.studies.poc.poc_scorer import MAX_TOKENS, SPLIT_YEAR, VINTAGE, evaluate, load_chronogpt, passed, split
+from fed_news.evaluation.stats_tests import mcnemar_greater
 
 SEEDS = (0, 1, 2)
 RANK, ALPHA, DROPOUT = 16, 32, 0.05
@@ -145,8 +145,8 @@ def _cached(path, make) -> np.ndarray:
 
 
 def run() -> dict:
-    from fed_news.labels import load_labels
-    from fed_news.stance import train_and_score
+    from fed_news.collect.labels import load_labels
+    from fed_news.features.stance import train_and_score
     labels = load_labels()
     train, test = split(labels)
     tr, te = labels[train].reset_index(drop=True), labels[test]

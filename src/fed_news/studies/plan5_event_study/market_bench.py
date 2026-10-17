@@ -11,13 +11,14 @@ import numpy as np
 import pandas as pd
 import requests
 
-from fed_news import config, http, models
-from fed_news.alfred import api_key
-from fed_news.clark_west import compare
-from fed_news.evaluate import metrics
-from fed_news.market import asof
-from fed_news.run_models import load_task
-from fed_news.walkforward import train_mask
+from fed_news import config, http
+from fed_news.models import linear as models
+from fed_news.collect.alfred import api_key
+from fed_news.evaluation.clark_west import compare
+from fed_news.evaluation.evaluate import metrics
+from fed_news.collect.market import asof
+from fed_news.studies.plan1_linear.run_models import load_task
+from fed_news.models.walkforward import train_mask
 
 FRED_OBS = "https://api.stlouisfed.org/fred/series/observations?series_id={}&api_key={}&file_type=json"
 BILLS = ("bill3m", "bill4w")

@@ -1,6 +1,7 @@
 import pandas as pd
 
-from fed_news import config, evaluate_text as et
+from fed_news import config
+from fed_news.studies.plan5_event_study import evaluate_text as et
 
 
 def test_report_with_all_inputs(tmp_path, monkeypatch):

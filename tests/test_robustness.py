@@ -1,6 +1,6 @@
 import pandas as pd
 
-from fed_news import robustness as rb
+from fed_news.evaluation import robustness as rb
 
 
 def test_sign_test_matches_binomial_tail():

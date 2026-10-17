@@ -4,13 +4,13 @@ Fed-stance features). Only the H6 row decides; secondary rows are reported, not 
 import pandas as pd
 
 from fed_news import config
-from fed_news.clark_west import compare
-from fed_news.evaluate import metrics
-from fed_news.event_study import run as run_event_study
-from fed_news.events import build_events
-from fed_news.naive_stance import naive_panel
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.walkforward import Spec, common_rows, run_spec
+from fed_news.evaluation.clark_west import compare
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan5_event_study.event_study import run as run_event_study
+from fed_news.studies.plan5_event_study.events import build_events
+from fed_news.studies.plan5_event_study.naive_stance import naive_panel
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.models.walkforward import Spec, common_rows, run_spec
 
 OUT = config.RESULTS / "study2"
 DS_PATH = config.DATA / "doc_stance2.pkl"

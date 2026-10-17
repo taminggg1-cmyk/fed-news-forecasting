@@ -1,7 +1,8 @@
 import pandas as pd
 import pytest
 
-from fed_news import config, labels
+from fed_news import config
+from fed_news.collect import labels
 
 S1 = "The committee decided to keep the target range unchanged this quarter."
 S2 = "Inflation pressures warrant a further tightening of monetary policy soon."
@@ -69,7 +70,7 @@ def test_real_tdw_match_rate_and_mapping():
     corpus_path = config.DATA / "corpus.pkl"
     if not corpus_path.exists():
         pytest.skip("corpus.pkl not built")
-    from fed_news.corpus import build_corpus
+    from fed_news.collect.corpus import build_corpus
     raw = labels._load_raw()
     assert set(raw["label"]) == {0, 1, 2}
     assert (raw["sentence"] == raw["sentence"].str.lower()).all()

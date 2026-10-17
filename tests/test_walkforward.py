@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import panel, walkforward as wf
+from fed_news.features import panel
+from fed_news.models import walkforward as wf
 
 
 def synthetic(n=80, seed=0):

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from fed_news import fomc_calendar
+from fed_news.collect import fomc_calendar
 
 SNIPPET = """
 <p><a href="/fomc/minutes/20050322.htm">Minutes</a> (Released Apr 12, 2005)</p>

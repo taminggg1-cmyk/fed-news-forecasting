@@ -17,7 +17,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from fed_news import config
-from fed_news.stats_tests import mcnemar_greater
+from fed_news.evaluation.stats_tests import mcnemar_greater
 
 SPLIT_YEAR, VINTAGE = 2012, 2011
 GRID = tuple(float(c) for c in np.logspace(-3, 2, 9))
@@ -105,7 +105,7 @@ def trim_rotary(model, n: int) -> None:
 
 def load_chronogpt(device: str = "cuda"):
     from huggingface_hub import hf_hub_download
-    from fed_news.chronogpt import ChronoGPT
+    from fed_news.studies.poc.chronogpt import ChronoGPT
     repo = f"manelalab/chrono-gpt-v1-{VINTAGE}1231"
     cfg = torch.load(hf_hub_download(repo, "config.pt"), weights_only=True)
     state = torch.load(hf_hub_download(repo, "pytorch_model.bin"), weights_only=True, map_location="cpu")
@@ -156,7 +156,7 @@ def _features(name: str, embed, sentences: list[str]) -> dict:
 
 
 def run() -> dict:
-    from fed_news.labels import load_labels
+    from fed_news.collect.labels import load_labels
     labels = load_labels()
     train, test = split(labels)
     sentences, y = labels["sentence"].tolist(), labels["label"].to_numpy(int)

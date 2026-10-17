@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from fed_news import neural
+from fed_news.models import neural
 
 
 def test_make_sequences_windows_end_at_each_row():

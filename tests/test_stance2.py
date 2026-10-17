@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import stance, stance2
+from fed_news.features import stance
+from fed_news.studies.study2_regional import stance2
 
 
 def docs():

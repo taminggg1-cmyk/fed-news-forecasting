@@ -16,8 +16,9 @@ from sklearn.linear_model import LogisticRegression
 from scipy import stats
 from sklearn.metrics import f1_score
 
-from fed_news import config, models
-from fed_news.stance import vintage_year
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.features.stance import vintage_year
 
 TAG = "prereg-study3"
 OSF_NAME = "PREREG_STUDY3_OSF.txt"
@@ -173,13 +174,13 @@ def run(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, 
     if reason:
         raise PermissionError(f"Study 3 real-label run refused: {reason}")
     if docs is None:
-        from fed_news.stance2 import all_docs
+        from fed_news.studies.study2_regional.stance2 import all_docs
         docs = all_docs()
     if not docs["doc_id"].is_unique:
         raise ValueError("duplicate doc_id in the document table")
     meetings = pd.read_pickle(config.DATA / "meetings.pkl") if meetings is None else meetings
     if embed is None:
-        from fed_news.decision_embed import cached_embedder
+        from fed_news.studies.study3_decision_text.decision_embed import cached_embedder
         embed = cached_embedder(docs)
     labelled = next_decision(docs.drop(columns=["text"], errors="ignore"), meetings)
     results.mkdir(parents=True, exist_ok=True)
@@ -218,13 +219,13 @@ def poc(docs: pd.DataFrame | None = None, meetings: pd.DataFrame | None = None, 
         results=RESULTS, centre: bool = False, old_scores: pd.DataFrame | None = None, prefix: str = "poc") -> dict:
     """Feasibility check before registration, on release years up to POC_LAST_YEAR only (no gate needed)."""
     if docs is None:
-        from fed_news.stance2 import all_docs
+        from fed_news.studies.study2_regional.stance2 import all_docs
         docs = all_docs()
     if not docs["doc_id"].is_unique:
         raise ValueError("duplicate doc_id in the document table")
     meetings = pd.read_pickle(config.DATA / "meetings.pkl") if meetings is None else meetings
     if embed is None:
-        from fed_news.decision_embed import cached_embedder
+        from fed_news.studies.study3_decision_text.decision_embed import cached_embedder
         embed = cached_embedder(docs)
     if centre:
         embed = centred_embedder(docs, embed)
@@ -258,8 +259,8 @@ def main(argv=None) -> None:
     elif args.poc_centred:
         poc(centre=True, old_scores=pd.read_pickle(config.DATA / "doc_stance2.pkl"), prefix="poc2")
     elif args.embed_only:
-        from fed_news.decision_embed import embed_all
-        from fed_news.stance2 import all_docs
+        from fed_news.studies.study3_decision_text.decision_embed import embed_all
+        from fed_news.studies.study2_regional.stance2 import all_docs
         embed_all(all_docs())
     else:
         run()

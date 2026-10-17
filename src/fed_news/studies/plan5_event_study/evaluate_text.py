@@ -29,7 +29,7 @@ def overlap_share(events_csv, y2_pickle) -> str:
     """Share of test events whose previous trading day is also an event day, as 'NN%' (empty if unavailable)."""
     if not (events_csv.exists() and y2_pickle.exists()):
         return ""
-    from fed_news.events import TEST_END, TEST_START
+    from fed_news.studies.plan5_event_study.events import TEST_END, TEST_START
     days = pd.to_datetime(pd.read_csv(events_csv)["day"])
     trading = pd.read_pickle(y2_pickle)["y2"].dropna().index
     test = days[(days >= pd.Timestamp(TEST_START)) & (days <= pd.Timestamp(TEST_END))]

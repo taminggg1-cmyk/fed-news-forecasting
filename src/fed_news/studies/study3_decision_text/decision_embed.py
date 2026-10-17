@@ -15,7 +15,7 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 
 from fed_news import config
-from fed_news.stance import model_name, vintage_year
+from fed_news.features.stance import model_name, vintage_year
 
 WINDOW = 512
 BATCH = 16

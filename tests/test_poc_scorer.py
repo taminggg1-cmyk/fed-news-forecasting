@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 import torch
 
-from fed_news import poc_scorer as pc
+from fed_news.studies.poc import poc_scorer as pc
 
 
 def test_mean_pool_ignores_padding():
@@ -45,7 +45,7 @@ def test_pass_rule():
 
 
 def test_trim_rotary_keeps_outputs_for_short_inputs_and_shrinks_tables():
-    from fed_news.chronogpt import ChronoGPT
+    from fed_news.studies.poc.chronogpt import ChronoGPT
     torch.manual_seed(0)
     model = ChronoGPT(vocab_size=50, num_layers=4, num_heads=2, model_dim=16)
     with torch.no_grad():

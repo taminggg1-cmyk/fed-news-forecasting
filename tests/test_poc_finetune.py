@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from fed_news import poc_finetune as pf
-from fed_news.chronogpt import ChronoGPT
+from fed_news.studies.poc import poc_finetune as pf
+from fed_news.studies.poc.chronogpt import ChronoGPT
 
 
 def tiny(seed=0):

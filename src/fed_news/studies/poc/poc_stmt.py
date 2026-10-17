@@ -16,11 +16,13 @@ from sklearn.metrics import f1_score, recall_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from fed_news import alfred, config, market, models
-from fed_news.meetings import load_meetings
-from fed_news.panel import M_COLS, S_COLS, _row
-from fed_news.stmt_change import OUT, WORK, meeting_features
-from fed_news.walkforward import placebo_matrix
+from fed_news.collect import alfred, market
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.collect.meetings import load_meetings
+from fed_news.features.panel import M_COLS, S_COLS, _row
+from fed_news.studies.poc.stmt_change import OUT, WORK, meeting_features
+from fed_news.models.walkforward import placebo_matrix
 
 LEAD_DAYS = 7
 GRID = tuple(float(c) for c in np.logspace(-3, 2, 9))

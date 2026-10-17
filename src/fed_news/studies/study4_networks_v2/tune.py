@@ -18,15 +18,17 @@ import optuna
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, recall_score
 
-from fed_news import config, models
-from fed_news.evaluate import metrics
-from fed_news.neural import build_model, fit_fixed, fit_validate, make_sequences, predict
-from fed_news.neural_walk import standardise
-from fed_news.panel import M_COLS, S_COLS
-from fed_news.stats_tests import dm_hln, holm, mcnemar_greater
-from fed_news.study4_sensitivity import block_bootstrap
-from fed_news.study5 import B as STRICT_T2, KEPT_SERIES, REALTIME_S as STRICT_S, check_vintages, nw_summary
-from fed_news.walkforward import train_mask
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.evaluation.evaluate import metrics
+from fed_news.models.neural import build_model, fit_fixed, fit_validate, make_sequences, predict
+from fed_news.studies.plan2_neural_original.neural_walk import standardise
+from fed_news.features.panel import M_COLS, S_COLS
+from fed_news.evaluation.stats_tests import dm_hln, holm, mcnemar_greater
+from fed_news.studies.study4_haiku_logit.study4_sensitivity import block_bootstrap
+from fed_news.studies.study5_horizon.study5 import (B as STRICT_T2, KEPT_SERIES, REALTIME_S as STRICT_S,
+                                                    check_vintages, nw_summary)
+from fed_news.models.walkforward import train_mask
 
 ARCHS = ("lstm", "gru", "tft")
 YEARS = (2001, 2005, 2009, 2013, 2017, 2021, 2025)
@@ -362,15 +364,15 @@ def paper_settings_rows(preds: dict, archs, cfg: TaskCfg) -> pd.DataFrame:
 
 
 def panels_for(cfg: TaskCfg) -> dict:
-    from fed_news import alfred
+    from fed_news.collect import alfred
     if cfg.name == "T2":
-        from fed_news.haiku_compare import panels
+        from fed_news.studies.study4_haiku_logit.haiku_compare import panels
         pan = panels()
     else:
-        from fed_news.haiku_compare import same_rows
-        from fed_news.haiku_index import OUT_PATH as HAIKU_PATH
-        from fed_news.naive_stance import naive_panel
-        from fed_news.walkforward import common_rows
+        from fed_news.studies.study4_haiku_logit.haiku_compare import same_rows
+        from fed_news.features.haiku_index import OUT_PATH as HAIKU_PATH
+        from fed_news.studies.plan5_event_study.naive_stance import naive_panel
+        from fed_news.models.walkforward import common_rows
         c = common_rows(naive_panel(cfg.panel, pd.read_pickle(config.DATA / "doc_stance.pkl")))
         h = common_rows(naive_panel(cfg.panel, pd.read_pickle(HAIKU_PATH)))
         c, h = same_rows(c, h)

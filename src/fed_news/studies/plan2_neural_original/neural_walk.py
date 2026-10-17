@@ -14,10 +14,11 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 
-from fed_news import config, models
-from fed_news.neural import build_model, fit_early_stopping, fit_fixed, make_sequences, predict
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.walkforward import prereg_ok, train_mask
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.models.neural import build_model, fit_early_stopping, fit_fixed, make_sequences, predict
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.models.walkforward import prereg_ok, train_mask
 
 H2A_TAG = "prereg-h2a"
 TFT_HIDDEN, TFT_DROPOUT, TFT_LR, TFT_MAX_EPOCHS, TFT_PATIENCE, TFT_VAL_FRAC = 32, 0.2, 1e-3, 300, 20, 0.2

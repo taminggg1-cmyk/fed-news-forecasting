@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import clark_west as cw
+from fed_news.evaluation import clark_west as cw
 
 
 def test_clark_west_matches_formula():

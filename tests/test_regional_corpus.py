@@ -1,6 +1,6 @@
 import pandas as pd
 
-from fed_news import regional_corpus as rc
+from fed_news.collect import regional_corpus as rc
 
 
 def test_in_tenure_and_surname():

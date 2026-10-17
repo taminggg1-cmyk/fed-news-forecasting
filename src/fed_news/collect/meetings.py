@@ -10,8 +10,9 @@ next meeting) minus the target in force before it. Cutoff = the day before the d
 import numpy as np
 import pandas as pd
 
-from fed_news import config, market
-from fed_news.fomc_calendar import load_calendar
+from fed_news import config
+from fed_news.collect import market
+from fed_news.collect.fomc_calendar import load_calendar
 
 
 def _split_dates(cal: pd.DataFrame, target: pd.Series) -> tuple[list[pd.Timestamp], list[pd.Timestamp]]:

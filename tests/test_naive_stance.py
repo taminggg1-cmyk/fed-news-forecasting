@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import naive_stance as ns, stance
+from fed_news.studies.plan5_event_study import naive_stance as ns
+from fed_news.features import stance
 
 
 def test_score_naive_uses_named_model_and_restores(monkeypatch, tmp_path):

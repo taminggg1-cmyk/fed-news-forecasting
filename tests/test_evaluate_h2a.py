@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import config, evaluate_h2a as ev, neural_walk, run_neural
+from fed_news import config
+from fed_news.studies.plan2_neural_original import evaluate_h2a as ev, neural_walk, run_neural
 
 
 def test_variance_rule():

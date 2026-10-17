@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import evaluate_study3 as ev
-from fed_news import study3 as s3
+from fed_news.studies.study3_decision_text import evaluate_study3 as ev
+from fed_news.studies.study3_decision_text import study3 as s3
 
 
 def write_results(folder, p_main, p_placebo):

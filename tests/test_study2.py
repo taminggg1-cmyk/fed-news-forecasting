@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import config, evaluate_study2 as ev2, study2
+from fed_news import config
+from fed_news.studies.study2_regional import evaluate_study2 as ev2, study2
 
 
 def test_event_rows_split_by_source(monkeypatch):

@@ -1,6 +1,6 @@
 import pytest
 
-from fed_news import poc_llm_labels as pl
+from fed_news.studies.poc import poc_llm_labels as pl
 
 
 def test_prompt_numbers_sentences_and_sends_text_only():

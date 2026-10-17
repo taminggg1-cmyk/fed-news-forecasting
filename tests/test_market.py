@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import market
+from fed_news.collect import market
 
 
 def test_splice_target_uses_point_then_range_midpoint():

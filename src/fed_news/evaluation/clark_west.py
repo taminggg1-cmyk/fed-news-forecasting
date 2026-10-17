@@ -10,7 +10,7 @@ import pandas as pd
 from scipy import stats
 
 from fed_news import config
-from fed_news.stats_tests import dm_hln
+from fed_news.evaluation.stats_tests import dm_hln
 
 TASKS = ("T1", "T2")
 

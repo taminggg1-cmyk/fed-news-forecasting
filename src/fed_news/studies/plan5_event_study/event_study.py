@@ -11,8 +11,8 @@ import statsmodels.api as sm
 from scipy import stats
 
 from fed_news import config
-from fed_news.clark_west import clark_west
-from fed_news.events import TEST_END, TEST_START, load_events
+from fed_news.evaluation.clark_west import clark_west
+from fed_news.studies.plan5_event_study.events import TEST_END, TEST_START, load_events
 
 ALPHA = 0.05
 MIN_TRAIN = 50

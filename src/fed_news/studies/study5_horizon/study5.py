@@ -13,15 +13,17 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from fed_news import alfred, config, models
-from fed_news.evaluate import decide, metrics
-from fed_news.haiku_compare import brier, log_loss
-from fed_news.haiku_index import OUT_PATH as HAIKU_PATH
-from fed_news.panel import M_COLS
-from fed_news.stats_tests import dm_hln, holm
-from fed_news.study4_sensitivity import block_bootstrap, class_counts
-from fed_news.text_features import fed_stance
-from fed_news.walkforward import _standardise, placebo_matrix
+from fed_news.collect import alfred
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.evaluation.evaluate import decide, metrics
+from fed_news.studies.study4_haiku_logit.haiku_compare import brier, log_loss
+from fed_news.features.haiku_index import OUT_PATH as HAIKU_PATH
+from fed_news.features.panel import M_COLS
+from fed_news.evaluation.stats_tests import dm_hln, holm
+from fed_news.studies.study4_haiku_logit.study4_sensitivity import block_bootstrap, class_counts
+from fed_news.features.text_features import fed_stance
+from fed_news.models.walkforward import _standardise, placebo_matrix
 
 OUT = config.RESULTS / "study5"
 REALTIME_S = ["s_rate_lag", "s_m2_mom", "s_m2_yoy", "s_payems_chg", "s_gdp_yoy", "s_cpi_yoy",

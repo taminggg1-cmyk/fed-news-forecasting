@@ -6,11 +6,11 @@ group. Each is compared with the stored S forecasts: RMSE, change against S, DM-
 import pandas as pd
 
 from fed_news import config
-from fed_news.clark_west import compare
-from fed_news.evaluate import metrics
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.run_models import load_task
-from fed_news.walkforward import Spec, run_spec
+from fed_news.evaluation.clark_west import compare
+from fed_news.evaluation.evaluate import metrics
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.studies.plan1_linear.run_models import load_task
+from fed_news.models.walkforward import Spec, run_spec
 
 GROUPS = {"stance": ["n_stance", "n_stance_chg"], "beige": ["n_beige"], "newspapers": ["n_news", "n_gpr", "n_epu"]}
 OUT = config.RESULTS / "text"

@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 from fed_news import config
-from fed_news.stats_tests import dm_hln, holm, mcnemar_greater
+from fed_news.evaluation.stats_tests import dm_hln, holm, mcnemar_greater
 
 PAPER_ROWS = [  # spec ladder row 1: the paper's own reported numbers
     ("paper LSTM (Table 2)", 0.2376 ** 2, 0.2376, 0.1495, -0.0006),

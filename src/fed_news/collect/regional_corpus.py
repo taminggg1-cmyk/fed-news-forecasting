@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from fed_news import config, fraser
+from fed_news import config
+from fed_news.collect import fraser
 
 TENURE = {
     "Minehan": [("Boston", 1994, 2007)], "Rosengren": [("Boston", 2007, 2021)], "Collins": [("Boston", 2022, 2026)],
@@ -127,7 +128,7 @@ def build_regional(fraser_df: pd.DataFrame, bis_df: pd.DataFrame, corpus: pd.Dat
 
 
 def main() -> pd.DataFrame:
-    from fed_news.corpus import build_corpus
+    from fed_news.collect.corpus import build_corpus
     sel = fraser_selection(fraser.load_items())
     print(f"FRASER items selected: {len(sel)}", flush=True)
     fraser.download_texts(sel)

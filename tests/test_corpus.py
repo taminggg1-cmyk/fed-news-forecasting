@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from fed_news import corpus
+from fed_news.collect import corpus
 
 T = pd.Timestamp
 

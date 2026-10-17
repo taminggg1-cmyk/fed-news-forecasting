@@ -6,7 +6,7 @@ import pytest
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-from fed_news import poc_stmt as ps
+from fed_news.studies.poc import poc_stmt as ps
 
 
 def toy_meetings():

@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import study4_sensitivity as s4
-from fed_news.panel import M_COLS, S_COLS
+from fed_news.studies.study4_haiku_logit import study4_sensitivity as s4
+from fed_news.features.panel import M_COLS, S_COLS
 
 
 def test_realtime_columns_drop_only_the_fallback_series():

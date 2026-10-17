@@ -17,7 +17,7 @@ from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
 from fed_news import config
-from fed_news.fomc_calendar import BASE, load_calendar
+from fed_news.collect.fomc_calendar import BASE, load_calendar
 from fed_news.http import get
 
 DOC_COLS = ["doc_id", "type", "speaker", "release", "text"]

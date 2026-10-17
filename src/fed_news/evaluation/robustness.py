@@ -20,8 +20,8 @@ import pandas as pd
 from scipy import stats
 
 from fed_news import config
-from fed_news.clark_west import compare
-from fed_news.stats_tests import dm_hln
+from fed_news.evaluation.clark_west import compare
+from fed_news.evaluation.stats_tests import dm_hln
 
 OUT = config.RESULTS / "exploratory"
 ZLB = 0.25
@@ -98,7 +98,7 @@ def ex_zlb() -> pd.DataFrame:
 
 def event_slopes() -> pd.DataFrame:
     import statsmodels.api as sm
-    from fed_news.events import TEST_END, TEST_START, build_events
+    from fed_news.studies.plan5_event_study.events import TEST_END, TEST_START, build_events
 
     sets = {"H5 (Plan 5 documents)": pd.read_csv(config.RESULTS / "text" / "events.csv", parse_dates=["day"],
                                                  index_col="day")}
@@ -118,7 +118,7 @@ def event_slopes() -> pd.DataFrame:
 
 
 def stance_majority() -> pd.DataFrame:
-    from fed_news.stance import classifier_year, eligible
+    from fed_news.features.stance import classifier_year, eligible
 
     labels = pd.read_pickle(config.DATA / "labels.pkl")
     acc = pd.read_csv(config.RESULTS / "stance_accuracy.csv")

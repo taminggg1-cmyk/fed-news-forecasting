@@ -1,5 +1,5 @@
-from fed_news import ablation as ab
-from fed_news.panel import N_COLS, S_COLS
+from fed_news.studies.plan5_event_study import ablation as ab
+from fed_news.features.panel import N_COLS, S_COLS
 
 
 def test_specs_cover_each_group_alone_and_left_out():

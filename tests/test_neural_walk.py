@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import models, neural_walk as nw, panel
+from fed_news.models import linear as models
+from fed_news.studies.plan2_neural_original import neural_walk as nw
+from fed_news.features import panel
 
 
 def synthetic(n=90, seed=0):

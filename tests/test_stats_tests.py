@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from fed_news import stats_tests as st
+from fed_news.evaluation import stats_tests as st
 
 
 def test_dm_hln_hand_computed():

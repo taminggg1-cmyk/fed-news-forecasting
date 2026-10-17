@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import config, frozen, neural_walk as nw, panel, run_neural
+from fed_news import config
+from fed_news.studies.plan2_neural_original import frozen, neural_walk as nw, run_neural
+from fed_news.features import panel
 
 
 def synthetic(n=90, seed=0):

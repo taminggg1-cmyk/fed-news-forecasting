@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from fed_news import alfred
+from fed_news.collect import alfred
 
 T = pd.Timestamp
 

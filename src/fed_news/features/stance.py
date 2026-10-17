@@ -17,8 +17,8 @@ import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
 
 from fed_news import config
-from fed_news.corpus import build_corpus, split_sentences
-from fed_news.labels import LABELS, load_labels
+from fed_news.collect.corpus import build_corpus, split_sentences
+from fed_news.collect.labels import LABELS, load_labels
 
 STANCE_TYPES = ("statement", "minutes", "presconf", "speech")
 

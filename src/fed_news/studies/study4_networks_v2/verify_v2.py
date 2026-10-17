@@ -13,8 +13,11 @@ import json
 import numpy as np
 import pandas as pd
 
-from fed_news import alfred, config, market, panel, tune
-from fed_news.text_features import fed_stance
+from fed_news.collect import alfred, market
+from fed_news import config
+from fed_news.features import panel
+from fed_news.studies.study4_networks_v2 import tune
+from fed_news.features.text_features import fed_stance
 
 OUT = config.RESULTS / "study4" / "v2_verification.json"
 FALLBACK_SERIES_COLS = {"s_pce_yoy", "s_pce_core_yoy", "s_earn_yoy", "s_u6_mom", "s_u6_yoy", "s_ppi_yoy",

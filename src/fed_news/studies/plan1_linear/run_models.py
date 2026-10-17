@@ -5,8 +5,8 @@ import time
 import pandas as pd
 
 from fed_news import config
-from fed_news.panel import N_COLS
-from fed_news.walkforward import common_rows, ladder, run_spec
+from fed_news.features.panel import N_COLS
+from fed_news.models.walkforward import common_rows, ladder, run_spec
 
 
 def load_task(task: str) -> pd.DataFrame:

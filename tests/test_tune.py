@@ -4,7 +4,8 @@ import optuna
 import pandas as pd
 import torch
 
-from fed_news import neural, tune
+from fed_news.models import neural
+from fed_news.studies.study4_networks_v2 import tune
 
 
 def _df(n=60, seed=0):
@@ -143,7 +144,7 @@ def test_validation_score_is_in_rate_units():
 
 
 def test_strict_arms_use_only_series_with_complete_vintages():
-    from fed_news import study5
+    from fed_news.studies.study5_horizon import study5
     t2, t1 = tune.TASKS["T2"].features, tune.TASKS["T1"].features
     assert t2["strict"][1] == study5.B and t2["strict+C"][1] == study5.B + tune.D and t2["strict+H"][0] == "H"
     assert t1["strict"][1] == study5.REALTIME_S

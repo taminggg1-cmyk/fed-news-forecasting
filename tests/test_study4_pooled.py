@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import study4_pooled as sp
+from fed_news.studies.study4_networks_v2 import study4_pooled as sp
 
 
 def _preds(dates, y_true, y_pred):

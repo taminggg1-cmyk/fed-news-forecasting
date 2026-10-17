@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import study5 as s5
+from fed_news.studies.study5_horizon import study5 as s5
 
 
 def _meetings():

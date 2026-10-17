@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import market_bench as mb
+from fed_news.studies.plan5_event_study import market_bench as mb
 
 
 def panel(n=60, seed=0):

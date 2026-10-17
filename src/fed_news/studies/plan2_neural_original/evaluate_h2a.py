@@ -9,10 +9,11 @@ were added after the results were known and are labelled so in the report.
 import numpy as np
 import pandas as pd
 
-from fed_news import config, run_neural
-from fed_news.evaluate import PAPER_ROWS, _git, metrics
-from fed_news.neural_walk import H2A_TAG
-from fed_news.stats_tests import dm_hln, holm, mcnemar_greater
+from fed_news import config
+from fed_news.studies.plan2_neural_original import run_neural
+from fed_news.evaluation.evaluate import PAPER_ROWS, _git, metrics
+from fed_news.studies.plan2_neural_original.neural_walk import H2A_TAG
+from fed_news.evaluation.stats_tests import dm_hln, holm, mcnemar_greater
 
 ARCHS = {"T1": ["lstm", "gru", "tft", "hybrid"], "T2": ["mlstm", "tft", "hybrid"]}
 INFOS = ("S", "S+N")

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from fed_news import meetings
+from fed_news.collect import meetings
 
 T = pd.Timestamp
 

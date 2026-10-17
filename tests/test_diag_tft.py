@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import diag_tft, neural_walk, run_neural
+from fed_news.studies.plan2_neural_original import diag_tft, neural_walk, run_neural
 from test_neural_walk import synthetic
 
 

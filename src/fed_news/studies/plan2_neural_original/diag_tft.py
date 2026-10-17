@@ -16,12 +16,13 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 
-from fed_news import config, neural_walk, run_neural
-from fed_news.evaluate import metrics
-from fed_news.evaluate_h2a import variance_rule
-from fed_news.neural_walk import neural_ladder, run_neural_spec
-from fed_news.run_models import load_task
-from fed_news.stats_tests import dm_hln
+from fed_news import config
+from fed_news.studies.plan2_neural_original import neural_walk, run_neural
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan2_neural_original.evaluate_h2a import variance_rule
+from fed_news.studies.plan2_neural_original.neural_walk import neural_ladder, run_neural_spec
+from fed_news.studies.plan1_linear.run_models import load_task
+from fed_news.evaluation.stats_tests import dm_hln
 
 OUT = config.RESULTS / "h2a_diag"
 EPOCH_COLS = ["task", "spec", "seed", "refit_date", "best_epoch"]

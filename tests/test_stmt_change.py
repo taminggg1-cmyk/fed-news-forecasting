@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from fed_news import stmt_change as sc
+from fed_news.studies.poc import stmt_change as sc
 
 S2008 = ("Voting for the FOMC monetary policy action were: Ben S. Bernanke, Chairman; Timothy F. Geithner, Vice "
          "Chairman; Elizabeth A. Duke; Richard W. Fisher; Donald L. Kohn; and Kevin M. Warsh. In a related action, "

@@ -11,9 +11,10 @@ import json
 import numpy as np
 import pandas as pd
 
-from fed_news import config, stance
-from fed_news import poc_llm_labels as pl
-from fed_news.poc_haiku_leak import mask, official_names
+from fed_news import config
+from fed_news.features import stance
+from fed_news.studies.poc import poc_llm_labels as pl
+from fed_news.studies.poc.poc_haiku_leak import mask, official_names
 
 OUT_PATH = config.DATA / "doc_stance_haiku.pkl"
 WORK = config.DATA / "study4"

@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 import torch
 
-from fed_news import decision_embed as de
+from fed_news.studies.study3_decision_text import decision_embed as de
 
 
 def test_window_bounds_cover_every_token_once():

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import evaluate
+from fed_news.evaluation import evaluate
 
 OK = [0.5, 0.5, 0.5]
 

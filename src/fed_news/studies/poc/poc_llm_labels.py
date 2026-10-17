@@ -93,7 +93,7 @@ def _ask(client, sentences: list[str], usage: dict, settings: dict, cap: int = T
 def run_pilot(attempt: int = 1) -> dict:
     import pandas as pd
     from sklearn.metrics import confusion_matrix, recall_score
-    from fed_news.labels import load_labels
+    from fed_news.collect.labels import load_labels
     labels = load_labels()
     pilot = pilot_sample(labels, attempt)
     client, usage, llm = _client(), {"input": 0, "output": 0}, []

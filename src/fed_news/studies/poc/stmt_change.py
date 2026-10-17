@@ -216,7 +216,7 @@ def stage1_human_labels(table: pd.DataFrame, scores: pd.DataFrame,
 
 
 def score_stage1_human() -> dict:
-    from fed_news.labels import load_labels
+    from fed_news.collect.labels import load_labels
     _, scores, _ = load_inputs()
     pairs, res = stage1_human_labels(pd.read_pickle(WORK / "statements.pkl"), scores, load_labels())
     pairs.to_csv(OUT / "stage1_human_pairs.csv", index=False)

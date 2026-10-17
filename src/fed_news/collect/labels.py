@@ -14,7 +14,7 @@ import unicodedata
 import pandas as pd
 
 from fed_news import config
-from fed_news.corpus import build_corpus, split_sentences
+from fed_news.collect.corpus import build_corpus, split_sentences
 from fed_news.http import get
 
 LABEL_TYPES = ("statement", "minutes", "presconf", "speech")

@@ -2,7 +2,7 @@ import json
 
 import pandas as pd
 
-from fed_news import fraser
+from fed_news.collect import fraser
 
 
 def item(item_id, date, urls, title="Speech"):

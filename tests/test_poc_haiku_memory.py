@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import poc_haiku_memory as hm
+from fed_news.studies.poc import poc_haiku_memory as hm
 
 
 def test_statement_text_is_cut_at_the_vote_and_masked():

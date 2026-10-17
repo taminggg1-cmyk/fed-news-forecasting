@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import panel
+from fed_news.features import panel
 
 T = pd.Timestamp
 
@@ -59,7 +59,7 @@ def test_market_at_uses_target_before_cutoff():
 
 
 def test_second_business_day_skips_weekends_and_federal_holidays():
-    from fed_news.panel import second_business_day
+    from fed_news.features.panel import second_business_day
     assert second_business_day(pd.Timestamp("2025-09-01")) == pd.Timestamp("2025-09-03")  # Mon 1st Labor Day
     assert second_business_day(pd.Timestamp("2022-01-01")) == pd.Timestamp("2022-01-04")  # Sat 1st
     assert second_business_day(pd.Timestamp("2025-02-01")) == pd.Timestamp("2025-02-04")  # Sat 1st
@@ -68,7 +68,7 @@ def test_second_business_day_skips_weekends_and_federal_holidays():
 
 
 def test_monthly_v2_rows_use_the_second_business_day_cutoff(monkeypatch):
-    from fed_news import panel
+    from fed_news.features import panel
     calls = []
     monkeypatch.setattr(panel, "_row", lambda cutoff, win_start, y, lag, d, a: calls.append((cutoff, win_start)) or
                         {"cutoff": cutoff, "win_start": win_start, "y_level": y, "y_change": y - lag, "s_rate_lag": lag})

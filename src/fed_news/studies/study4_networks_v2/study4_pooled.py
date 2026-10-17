@@ -10,9 +10,10 @@ import json
 import numpy as np
 import pandas as pd
 
-from fed_news import config, tune
-from fed_news.study4_sensitivity import block_bootstrap
-from fed_news.study5 import nw_summary
+from fed_news import config
+from fed_news.studies.study4_networks_v2 import tune
+from fed_news.studies.study4_haiku_logit.study4_sensitivity import block_bootstrap
+from fed_news.studies.study5_horizon.study5 import nw_summary
 
 OUT = config.RESULTS / "study4" / "exploratory_pooled_news.json"
 ARCHS = ("lstm", "gru", "tft")

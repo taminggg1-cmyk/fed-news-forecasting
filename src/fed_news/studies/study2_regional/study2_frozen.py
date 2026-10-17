@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 
 from fed_news import config
-from fed_news.clark_west import clark_west, compare
-from fed_news.evaluate import metrics
-from fed_news.event_study import MIN_TRAIN, walk_forward
-from fed_news.events import TEST_END, build_events
-from fed_news.frozen import STARTS, frozen_linear, frozen_rw
-from fed_news.naive_stance import naive_panel
-from fed_news.panel import N_COLS, S_COLS
-from fed_news.walkforward import common_rows
+from fed_news.evaluation.clark_west import clark_west, compare
+from fed_news.evaluation.evaluate import metrics
+from fed_news.studies.plan5_event_study.event_study import MIN_TRAIN, walk_forward
+from fed_news.studies.plan5_event_study.events import TEST_END, build_events
+from fed_news.studies.plan2_neural_original.frozen import STARTS, frozen_linear, frozen_rw
+from fed_news.studies.plan5_event_study.naive_stance import naive_panel
+from fed_news.features.panel import N_COLS, S_COLS
+from fed_news.models.walkforward import common_rows
 
 OUT = config.RESULTS / "study2"
 DS_PATH = config.DATA / "doc_stance2.pkl"

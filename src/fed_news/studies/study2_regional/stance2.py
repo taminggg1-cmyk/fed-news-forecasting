@@ -7,10 +7,11 @@ import hashlib
 import numpy as np
 import pandas as pd
 
-from fed_news import config, stance
-from fed_news.corpus import build_corpus
-from fed_news.labels import load_labels
-from fed_news.regional_corpus import OUT_PATH as REGIONAL_PATH
+from fed_news import config
+from fed_news.features import stance
+from fed_news.collect.corpus import build_corpus
+from fed_news.collect.labels import load_labels
+from fed_news.collect.regional_corpus import OUT_PATH as REGIONAL_PATH
 
 PARTS = config.DATA / "stance2"
 OUT_PATH = config.DATA / "doc_stance2.pkl"

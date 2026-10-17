@@ -641,17 +641,17 @@ arms are robustness checks and are not Holm-adjusted.
 \begin{tabular}{p{4.6cm}p{3.6cm}p{3.4cm}p{3.2cm}}
 \toprule
 Result & Code & Commit, date & Status \\ \midrule
-Plan 1 linear tests, original cutoff & \texttt{walkforward.py}, \texttt{evaluate.py} & 8c8d3c2, 2026-10-09, after tag \texttt{prereg} & Registered; monthly part superseded \\
+Plan 1 linear tests, original cutoff & \texttt{models/walkforward.py}, \texttt{evaluation/evaluate.py} & 8c8d3c2, 2026-10-09, after tag \texttt{prereg} & Registered; monthly part superseded \\
 Plan 1 monthly rerun, corrected cutoff & \texttt{audit/2026-10-13/ rerun\_plan1\_t1b.py} & Run 2026-10-13; committed 0f00878, 2026-10-17 & Post-audit correction, exploratory \\
-Study 4 ordered logit & \texttt{haiku\_compare.py} & 7879a70, 2026-10-12; design b4a00fd before the run & Primary of an exploratory study \\
-Study 4 networks, version 2 & \texttt{tune.py} & 1a31c73, 2026-10-13; protocol 6048e0d & Amendment written after v1 results \\
-Study 4 networks, version 1 & \texttt{tune.py} at 74ab18f & 74ab18f & Superseded, not cited \\
-Study 5, three meetings ahead & \texttt{study5.py} & 074d2b9, 2026-10-12; design 85de61f & Primary of an exploratory study \\
+Study 4 ordered logit & \texttt{studies/study4\_haiku\_logit/ haiku\_compare.py} & 7879a70, 2026-10-12; design b4a00fd before the run & Primary of an exploratory study \\
+Study 4 networks, version 2 & \texttt{studies/study4\_networks\_v2/ tune.py} & 1a31c73, 2026-10-13; protocol 6048e0d & Amendment written after v1 results \\
+Study 4 networks, version 1 & \texttt{tune.py} at 74ab18f (old layout) & 74ab18f & Superseded, not cited \\
+Study 5, three meetings ahead & \texttt{studies/study5\_horizon/ study5.py} & 074d2b9, 2026-10-12; design 85de61f & Primary of an exploratory study \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent The full audit, with recomputed tables for each vintage treatment, is in
+\noindent Code paths are relative to \texttt{src/fed\_news/} in the layout of 17 October 2026; earlier commits use a flat layout (\texttt{docs/REVIEW\_MAP.md} maps old to new names). Every headline number is traced in \texttt{docs/RESULTS\_PROVENANCE.md}. The full audit, with recomputed tables for each vintage treatment, is in
 \texttt{audit/2026-10-13/AUDIT.md}; figures are produced by \texttt{paper/make\_figures.py} from the committed
 result files.
 

@@ -1,4 +1,5 @@
-from fed_news import run_models, walkforward as wf
+from fed_news.studies.plan1_linear import run_models
+from fed_news.models import walkforward as wf
 
 
 def test_no_text_selection_excludes_every_news_spec():

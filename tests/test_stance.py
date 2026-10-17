@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fed_news import stance
+from fed_news.features import stance
 
 
 def test_vintage_rule():

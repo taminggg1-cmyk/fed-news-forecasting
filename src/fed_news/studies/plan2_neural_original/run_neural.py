@@ -14,9 +14,10 @@ import time
 import numpy as np
 import pandas as pd
 
-from fed_news import config, models
-from fed_news.neural_walk import neural_ladder, run_neural_spec
-from fed_news.run_models import load_task
+from fed_news import config
+from fed_news.models import linear as models
+from fed_news.studies.plan2_neural_original.neural_walk import neural_ladder, run_neural_spec
+from fed_news.studies.plan1_linear.run_models import load_task
 
 OUT = config.RESULTS / "h2a"
 SEEDS = tuple(range(8))

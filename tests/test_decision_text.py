@@ -3,8 +3,8 @@ import subprocess
 import numpy as np
 import pandas as pd
 
-from fed_news import decision_text as dt
-from fed_news.stance import vintage_year
+from fed_news.studies.study3_decision_text import decision_text as dt
+from fed_news.features.stance import vintage_year
 
 
 def meetings():

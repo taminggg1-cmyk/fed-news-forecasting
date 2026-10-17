@@ -3,7 +3,7 @@ import pytest
 from scipy.optimize import check_grad
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 
-from fed_news import models
+from fed_news.models import linear as models
 
 
 def simulate(n=600, seed=0):

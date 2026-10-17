@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 
 from fed_news import config
-from fed_news import poc_llm_labels as pl
-from fed_news.stmt_change import normalise
+from fed_news.studies.poc import poc_llm_labels as pl
+from fed_news.studies.poc.stmt_change import normalise
 
 OUT = config.RESULTS / "poc_haiku"
 N_DATE, SEED, BATCH, CAP = 300, 0, 25, 400_000
@@ -142,7 +142,7 @@ def chrono_scores(labels: pd.DataFrame) -> np.ndarray:
 
 
 def run() -> dict:
-    from fed_news.labels import load_labels
+    from fed_news.collect.labels import load_labels
     labels, corpus = load_labels(), pd.read_pickle(config.DATA / "corpus.pkl")
     meetings = pd.read_pickle(config.DATA / "meetings.pkl")
     names, client, usage = official_names(corpus), pl._client(), {"input": 0, "output": 0}

@@ -12,9 +12,9 @@ import pandas as pd
 from scipy import stats
 
 from fed_news import config
-from fed_news import poc_llm_labels as pl
-from fed_news.poc_haiku_leak import mask, official_names, parse_years
-from fed_news.stats_tests import mcnemar_greater
+from fed_news.studies.poc import poc_llm_labels as pl
+from fed_news.studies.poc.poc_haiku_leak import mask, official_names, parse_years
+from fed_news.evaluation.stats_tests import mcnemar_greater
 
 OUT = config.RESULTS / "poc_haiku"
 BATCH_TEXT, BATCH_DATES, SEED, CAP = 5, 25, 0, 400_000

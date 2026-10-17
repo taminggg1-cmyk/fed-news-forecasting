@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from fed_news import haiku_compare as hc
+from fed_news.studies.study4_haiku_logit import haiku_compare as hc
 
 
 def test_log_loss_and_brier_use_the_true_class_probability():

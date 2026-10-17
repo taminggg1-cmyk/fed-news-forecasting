@@ -11,9 +11,9 @@ import pandas as pd
 import pysentiment2 as ps
 
 from fed_news import config
-from fed_news.corpus import build_corpus
-from fed_news.indices import load_indices, window_mean
-from fed_news.panel import N_COLS
+from fed_news.collect.corpus import build_corpus
+from fed_news.collect.indices import load_indices, window_mean
+from fed_news.features.panel import N_COLS
 
 GROUP = {"statement": "policy", "presconf": "policy", "minutes": "minutes", "speech": "speech"}
 _LM = ps.LM()
