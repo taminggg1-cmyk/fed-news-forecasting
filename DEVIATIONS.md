@@ -80,6 +80,13 @@ A second external review (code and saved results) led to the disclosures below. 
   two layers, no dropout, learning rate 1e-4, 644 epochs). The GRU (188 units, 1 layer, 2e-4, 449 epochs)
   matches. The source of the 240/300 setting is not recorded; the Plan 2 LSTM rows should not be described as
   the paper's LSTM settings until this is resolved.
+- Resolved 2026-10-17: the 240-unit, one-layer, 300-epoch LSTM and the published RMSE 0.2376 / 0.2705 come from
+  the July 2025 preliminary version of the paper (SSRN 5401236, `ssrn-5401236.pdf`, section 3.2.2 and Table 2).
+  The September 2025 AMRO WP/25-10 version changes the LSTM to 109 units, two layers, 644 epochs, and its Table 2
+  reports RMSE 0.1868 (LSTM) and 0.2672 (GRU), MAE 0.1164 and 0.1476. The Plan 2 LSTM therefore follows the
+  preliminary version, not the working paper cited in the references. The README and the draft paper now quote
+  both versions. With the working-paper numbers, the no-change forecast (0.192) no longer beats the paper's LSTM.
+  No result was rerun.
 - Study 4 v2 compute rule (design 12.8), applied 2026-10-13 before any v2 tuning: timed upper bounds were
   about 14.3 h (CPU: LSTM and GRU, both tasks) and 25.6 h (GPU: TFT, both tasks), above 16 h, so every v2 arm
   uses 20 Optuna trials instead of 30 (results/study4/v2_timing/).

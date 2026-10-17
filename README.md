@@ -13,9 +13,11 @@ did not succeed (section 11).
   10 after Holm; event studies: p = 0.129 and 0.369), and the linear gain shrinks when the text classifier is
   retrained. The design had low power for gains of this size, so this is not evidence that text has no effect.
 - **Replication: not achieved.** On the paper's window (Jan 2016 - Apr 2025) our real-time LSTM and GRU have RMSE
-  0.415 and 0.647, against 0.238 and 0.271 published. A no-change forecast (0.192) beats the published LSTM and
-  GRU; the paper's LLM (0.176) beats no change, but its authors acknowledge it had look-ahead. Our own linear
-  model with text (0.196) also loses to no change on that window.
+  0.415 and 0.647. The paper exists in two versions: the September 2025 AMRO working paper (WP/25-10, Table 2)
+  reports 0.1868 (LSTM) and 0.2672 (GRU); the July 2025 preliminary SSRN version (5401236) reports 0.2376 and
+  0.2705. A no-change forecast (0.192) beats the GRU in both versions and the preliminary LSTM, but not the working
+  paper's LSTM (0.1868). The paper's LLM (0.176) beats no change, but its authors acknowledge it had look-ahead.
+  Our own linear model with text (0.196) also loses to no change on that window.
 - **Linear vs deep (exploratory).** Our linear model significantly outperforms our LSTM, GRU and meeting-LSTM
   set-ups, which are weak here (the meeting LSTM calls 32% of decisions correctly, against 66% for "always
   hold"). Against the TFT without text, its lead is not significant (p = 0.14).
@@ -422,8 +424,10 @@ based on this work should disclose the use of AI according to the venue's policy
 
 | Model | RMSE | MAE |
 |---|---|---|
-| Chan-Lau et al. LSTM (published; monthly refits, revised data) | 0.238 | 0.150 |
-| Chan-Lau et al. GRU (published) | 0.271 | 0.133 |
+| Chan-Lau et al. LSTM, AMRO WP/25-10, Sep 2025 (monthly refits, revised data) | 0.1868 | 0.1164 |
+| Chan-Lau et al. GRU, AMRO WP/25-10, Sep 2025 | 0.2672 | 0.1476 |
+| Chan-Lau et al. LSTM, preliminary SSRN 5401236, Jul 2025 | 0.2376 | 0.1495 |
+| Chan-Lau et al. GRU, preliminary SSRN 5401236, Jul 2025 | 0.2705 | 0.1327 |
 | Chan-Lau et al. LLM (published; look-ahead acknowledged) | 0.176 | 0.148 |
 | **Our LSTM, statistics only (real-time data, refit every 3 months)** | **0.415** | 0.292 |
 | Our LSTM, with text | 0.430 | 0.285 |
@@ -561,7 +565,7 @@ test tables are in `results/`, so every reported number can be checked without r
 - Baker, S. R., Bloom, N. and Davis, S. J. (2016). Measuring economic policy uncertainty. *Quarterly Journal of Economics* 131(4), 1593-1636.
 - Bank for International Settlements. Central bankers' speeches. https://www.bis.org/cbspeeches/
 - Caldara, D. and Iacoviello, M. (2022). Measuring geopolitical risk. *American Economic Review* 112(4), 1194-1225.
-- Chan-Lau, J. A., Quach, T. L. and Shi, A. R. (2025). Forecasting Federal Funds Rates with AI: LSTM, GRU, and Large Language Model Approaches. AMRO Working Paper WP/25-10; SSRN 5401236. https://amro-asia.org/wp-content/uploads/2025/09/AMRO_WP_25_10_FedAI_model.pdf
+- Chan-Lau, J. A., Quach, T. L. and Shi, A. R. [Aruhan Rui] (2025). Forecasting Federal Funds Rates with AI: LSTM, GRU, and Large Language Model Approaches. AMRO Working Paper WP/25-10; SSRN 5401236. https://amro-asia.org/wp-content/uploads/2025/09/AMRO_WP_25_10_FedAI_model.pdf
 - Cho, K., van Merrienboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H. and Bengio, Y. (2014). Learning phrase representations using RNN encoder-decoder for statistical machine translation. *Proceedings of EMNLP 2014*, 1724-1734.
 - Clark, T. E. and McCracken, M. W. (2001). Tests of equal forecast accuracy and encompassing for nested models. *Journal of Econometrics* 105(1), 85-110.
 - Clark, T. E. and West, K. D. (2007). Approximately normal tests for equal predictive accuracy in nested models. *Journal of Econometrics* 138(1), 291-311.
