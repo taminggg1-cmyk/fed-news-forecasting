@@ -65,7 +65,7 @@ def main() -> None:
              "Models fitted once before the cutoff and never updated; descriptive, not part of H6.", "",
              "## Event model", "", ev_rows.round(6).to_markdown(index=False), "",
              "## Forecasting", "", fc.round(4).to_markdown(index=False), ""]
-    (config.REPO / "RESULTS_STUDY2_FROZEN.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS_STUDY2_FROZEN.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
 
 

@@ -234,7 +234,7 @@ def main() -> None:
         "## Deviations", "", deviations_section(), "",
         "## Provenance", "", provenance_section(), "",
     ]
-    (config.REPO / "RESULTS_H2A.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS_H2A.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines[:4]))
 
 

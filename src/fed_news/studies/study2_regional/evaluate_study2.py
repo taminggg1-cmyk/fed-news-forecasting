@@ -43,7 +43,7 @@ def main() -> None:
         f"- sha256 (first 16 hex) regional_corpus.pkl: {_sha(config.DATA / 'regional_corpus.pkl')}",
         f"- sha256 (first 16 hex) doc_stance2.pkl: {_sha(config.DATA / 'doc_stance2.pkl')}", "",
     ]
-    (config.REPO / "RESULTS_STUDY2.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS_STUDY2.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines[:4]))
 
 

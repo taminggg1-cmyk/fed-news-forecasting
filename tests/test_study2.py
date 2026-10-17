@@ -35,7 +35,7 @@ def test_report(tmp_path, monkeypatch):
     monkeypatch.setattr(ev2, "_git", lambda *a: "abc")
     monkeypatch.setattr(ev2, "_sha", lambda p: "deadbeef")
     ev2.main()
-    text = (tmp_path / "RESULTS_STUDY2.md").read_text(encoding="utf-8")
+    text = (tmp_path / "docs" / "reports" / "RESULTS_STUDY2.md").read_text(encoding="utf-8")
     assert "**H6 verdict: supported.**" in text and "not run" in text and "conservative" in text
 
 

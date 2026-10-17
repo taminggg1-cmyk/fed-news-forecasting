@@ -123,7 +123,7 @@ def main() -> None:
         "## Deviations", "", deviations_section(), "",
         "## Provenance", "", provenance_section(), "",
     ]
-    (config.REPO / "RESULTS.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines[:8]))
 
 

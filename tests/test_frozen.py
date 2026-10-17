@@ -78,7 +78,7 @@ def test_run_all_and_report_with_fakes(tmp_path, monkeypatch):
             assert (tmp_path / "frozen" / f"preds_{task}_tft-S_{yyyy}.csv").exists()
     table = frozen.report()
     assert {"task", "start", "model", "rmse", "mae", "accuracy", "p_vs_no_change"} <= set(table.columns)
-    assert (tmp_path / "RESULTS_FROZEN.md").exists()
+    assert (tmp_path / "docs" / "reports" / "RESULTS_FROZEN.md").exists()
 
 
 def test_frozen_hybrid_never_sees_test_period_targets():

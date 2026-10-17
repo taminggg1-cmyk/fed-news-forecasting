@@ -115,7 +115,7 @@ def test_main_writes_tables_and_report(tmp_path, monkeypatch):
     tests = pd.read_csv(tmp_path / "tests.csv")
     assert {"hypothesis", "p", "holm_h2_so_far", "variance_rule"} <= set(tests.columns)
     assert "H2c T1 S+N vs rw" in set(tests["hypothesis"])
-    report = (tmp_path / "RESULTS_H2A.md").read_text(encoding="utf-8")
+    report = (tmp_path / "docs" / "reports" / "RESULTS_H2A.md").read_text(encoding="utf-8")
     assert "Holm" in report and "variance rule" in report.lower()
     for head in ("## Reading of the tests", "## Deviations", "## Provenance", "## Exploratory analyses",
                  "best-epoch diagnostic not run", "re-run not done"):

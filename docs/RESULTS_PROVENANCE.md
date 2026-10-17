@@ -59,8 +59,8 @@ the second US business day (panel t1b); T2 = the day before the meeting.
 | Forest plot | `fig:forest` | `recomputed_comparisons.csv`, `comparison_neural_T*.csv` | `paper/make_figures.py` | – | mixed (filled) and strict (hollow) | 0f00878 | – |
 | Interim Holm p 0.014 (LSTM + Haiku) | superseded by 0.020 | `logs/v2_fc_t2_rnn.log` (not committed) | `tune.py` before the fix in 0f00878 | Holm over 4 (TFT not finished) | – | – | **Superseded** |
 | Version 1 networks (LSTM + Haiku DM p 0.018; GRU + ChronoBERT p 0.009) | not cited | `results/study4/superseded_v1/` | `tune.py` at 74ab18f | – | mixed, T1 original | 74ab18f | **Superseded** |
-| Plan 2 original networks: 0 of 10 after Holm; hybrid raw p 0.0084 / 0.0115 | `RESULTS_H2A.md` | `results/h2a/preds_*.csv` | `studies/plan2_neural_original/evaluate_h2a.py` (`tests.csv`, `ensemble_metrics.csv`) | DM, McNemar, Holm over 15 | mixed, T1 original | fb78233, 1593530 | Registered (H2a) |
-| Replication window, our LSTM / GRU RMSE | 0.415 / 0.647 | `results/h2a/preds_T1_lstm-S.csv`, `preds_T1_gru-S.csv`, Jan 2016–Apr 2025 | `studies/plan2_neural_original/evaluate_h2a.py` (paper-window table in `RESULTS_H2A.md`: 0.4154) | descriptive | mixed, T1 original | 1593530 | Registered run, descriptive window |
+| Plan 2 original networks: 0 of 10 after Holm; hybrid raw p 0.0084 / 0.0115 | `docs/reports/RESULTS_H2A.md` | `results/h2a/preds_*.csv` | `studies/plan2_neural_original/evaluate_h2a.py` (`tests.csv`, `ensemble_metrics.csv`) | DM, McNemar, Holm over 15 | mixed, T1 original | fb78233, 1593530 | Registered (H2a) |
+| Replication window, our LSTM / GRU RMSE | 0.415 / 0.647 | `results/h2a/preds_T1_lstm-S.csv`, `preds_T1_gru-S.csv`, Jan 2016–Apr 2025 | `studies/plan2_neural_original/evaluate_h2a.py` (paper-window table in `docs/reports/RESULTS_H2A.md`: 0.4154) | descriptive | mixed, T1 original | 1593530 | Registered run, descriptive window |
 | No-change on that window | 0.1925 | `results/preds_T1_rw.csv` | `results/metrics.csv` ("paper window") | descriptive | – | 8c8d3c2 | Descriptive |
 | AMRO published numbers | WP/25-10: LSTM 0.1868, GRU 0.2672; preliminary: 0.2376, 0.2705 | – | – | – | revised data (Haver) | – | External (`DEVIATIONS.md`, 2026-10-17) |
 
@@ -68,8 +68,8 @@ the second US business day (panel t1b); T2 = the day before the meeting.
 
 | Number | Value | File | Code | Status | Commit |
 | --- | --- | --- | --- | --- | --- |
-| H5 Clark–West p, 1,778 events | 0.129 | `results/text/`, `RESULTS_TEXT.md` | `studies/plan5_event_study/event_study.py` | Registered (`prereg-text`) | 658f1a0 |
-| H6 Clark–West p, 3,158 events | 0.369 | `results/study2/`, `RESULTS_STUDY2.md` | `studies/study2_regional/study2.py` | Registered (`prereg-study2`) | ae94496 |
+| H5 Clark–West p, 1,778 events | 0.129 | `results/text/`, `docs/reports/RESULTS_TEXT.md` | `studies/plan5_event_study/event_study.py` | Registered (`prereg-text`) | 658f1a0 |
+| H6 Clark–West p, 3,158 events | 0.369 | `results/study2/`, `docs/reports/RESULTS_STUDY2.md` | `studies/study2_regional/study2.py` | Registered (`prereg-study2`) | ae94496 |
 | ChronoBERT held-out accuracy | 0.56 (2000) → 0.70 (2025), mean 0.644 | `results/stance_accuracy.csv` | `features/stance.py` | Descriptive | 68b5f08 |
 | Majority-class baseline | 0.42–0.56 | `results/exploratory/stance_majority_baseline.csv` | `evaluation/robustness.py` | Exploratory | 1f31475 |
 | Haiku sentences labelled; hawkish / dovish shares | 343,717 of 343,742; 8.5% / 12.4% | `results/study4/haiku_index.json` | `features/haiku_index.py` | Descriptive | 3faa7c4 |

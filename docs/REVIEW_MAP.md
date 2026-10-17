@@ -2,10 +2,12 @@
 
 How to audit this repository: what each file does, the order things run in, and which files produce each
 table and figure. Every headline number of the draft paper is traced in
-[`RESULTS_PROVENANCE.md`](RESULTS_PROVENANCE.md).
+[`docs/reports/RESULTS_PROVENANCE.md`](RESULTS_PROVENANCE.md).
 
 Layout as of 2026-10-17 (branch `review-layout`). Before that date every module sat directly in
-`src/fed_news/`; the old names still import and run (table at the end).
+`src/fed_news/`; the old names still import and run (table at the end). On 2026-10-18 the pre-registrations
+(`PREREG*.md`) moved to `docs/prereg/`, the generated reports (`RESULTS*.md`) to `docs/reports/`, and the long
+README to `docs/README_DETAILED.md`. In the tagged commits they are still at the repository root.
 
 ## 1. The pipeline
 
@@ -61,12 +63,12 @@ Re-run this step yourself without touching `results/`: `python audit/verify_save
 
 ## 3. Run order
 
-Commands are in README section 13. In short, from the repository root with `PYTHONPATH=src`:
+Commands are in `docs/README_DETAILED.md` section 13. In short, from the repository root with `PYTHONPATH=src`:
 
 1. `collect`: `meetings`, `corpus`, `labels` (via `features.stance`), `indices`, `alfred` (via `features.panel`).
 2. `features`: `panel` (T1, T2 panels) → `stance` (GPU, hours) → `text_features` (attaches N, writes `*_full.pkl`).
    Study 4 adds `features.haiku_index project|submit|collect` (paid API); Study 2 adds `studies.study2_regional.stance2`.
-3. `studies.plan1_linear.run_models` → `evaluation.evaluate` (RESULTS.md).
+3. `studies.plan1_linear.run_models` → `evaluation.evaluate` (`docs/reports/RESULTS.md`).
 4. Each later study's runner, then its evaluator (table below).
 
 Raw data and caches live in `D:/fed_news` (or `FED_NEWS_DATA`); they are not in the repository.
@@ -100,7 +102,7 @@ interactive session; no committed command runs these two calls. Its row cutoffs 
 | `models/walkforward.py` | Ladder of specs, t−2 rule, placebo and shuffled controls, refuses news rows without tag `prereg` | predictions (via callers) |
 | `models/neural.py`, `models/tft.py` | LSTM / GRU regressors, TFT-inspired network, training loops | – |
 | `evaluation/stats_tests.py` | DM-HLN, exact McNemar, Holm | – |
-| `evaluation/evaluate.py` | Metrics, H1 decision | `RESULTS.md`, `results/metrics.csv`, `results/h1_tests.csv` |
+| `evaluation/evaluate.py` | Metrics, H1 decision | `docs/reports/RESULTS.md`, `results/metrics.csv`, `results/h1_tests.csv` |
 | `evaluation/clark_west.py` | Clark–West for nested models (exploratory) | `results/exploratory/clark_west.csv` |
 | `evaluation/robustness.py` | Post-review checks of 2026-10-11 | `results/exploratory/*.csv` |
 | `evaluation/plots.py` | README figures | `figures/*.png` |
@@ -109,15 +111,15 @@ interactive session; no committed command runs these two calls. Its row cutoffs 
 
 | Folder | Status | Runner → evaluator | Results | Report |
 | --- | --- | --- | --- | --- |
-| `studies/plan1_linear/` | Registered, tag `prereg` | `run_models.py` → `evaluation/evaluate.py` | `results/preds_T*.csv`, `metrics.csv`, `h1_tests.csv`, `h2_pvalues.csv` | `RESULTS.md` |
-| `studies/plan2_neural_original/` | Registered, tag `prereg-h2a`; **original** networks | `run_neural.py` → `evaluate_h2a.py`; `frozen.py`; `diag_tft.py` | `results/h2a/`, `results/frozen/`, `results/h2a_diag/` | `RESULTS_H2A.md`, `RESULTS_FROZEN.md` |
-| `studies/plan5_event_study/` | Registered, tag `prereg-text` | `event_study.py`, `market_bench.py`, `ablation.py`, `naive_stance.py` → `evaluate_text.py` | `results/text/` | `RESULTS_TEXT.md` |
-| `studies/study2_regional/` | Registered, tag `prereg-study2` | `stance2.py` → `study2.py`, `study2_frozen.py` → `evaluate_study2.py` | `results/study2/` | `RESULTS_STUDY2.md`, `RESULTS_STUDY2_FROZEN.md` |
+| `studies/plan1_linear/` | Registered, tag `prereg` | `run_models.py` → `evaluation/evaluate.py` | `results/preds_T*.csv`, `metrics.csv`, `h1_tests.csv`, `h2_pvalues.csv` | `docs/reports/RESULTS.md` |
+| `studies/plan2_neural_original/` | Registered, tag `prereg-h2a`; **original** networks | `run_neural.py` → `evaluate_h2a.py`; `frozen.py`; `diag_tft.py` | `results/h2a/`, `results/frozen/`, `results/h2a_diag/` | `docs/reports/RESULTS_H2A.md`, `docs/reports/RESULTS_FROZEN.md` |
+| `studies/plan5_event_study/` | Registered, tag `prereg-text` | `event_study.py`, `market_bench.py`, `ablation.py`, `naive_stance.py` → `evaluate_text.py` | `results/text/` | `docs/reports/RESULTS_TEXT.md` |
+| `studies/study2_regional/` | Registered, tag `prereg-study2` | `stance2.py` → `study2.py`, `study2_frozen.py` → `evaluate_study2.py` | `results/study2/` | `docs/reports/RESULTS_STUDY2.md`, `docs/reports/RESULTS_STUDY2_FROZEN.md` |
 | `studies/study3_decision_text/` | Proof of concept, failed its pre-set check | `study3.py` → `evaluate_study3.py` | `results/study3/` | (none committed) |
-| `studies/poc/` | Exploratory proofs of concept | `poc_*.py`, `stmt_change.py` | `results/poc_*` | `RESULTS_POC.md` (written by hand from the files) |
-| `studies/study4_haiku_logit/` | Exploratory study; design b4a00fd before the run | `haiku_compare.py`; `study4_sensitivity.py` | `results/study4/` (top level), `results/study4/sensitivity/` | `RESULTS_STUDY4.md` (written by hand from the files) |
-| `studies/study4_networks_v2/` | **Amended** (v2 protocol 6048e0d, after v1 results); v1 superseded | `verify_v2.py` → `tune.py time/tune/forecast`; `study4_pooled.py` | `results/study4/neural/` (T2), `results/study4/neural_t1/` (T1); v1 in `results/study4/superseded_v1/` | `RESULTS_STUDY4.md`, audit section 2 |
-| `studies/study5_horizon/` | Exploratory study; design 85de61f before the run | `study5.py` | `results/study5/` | `RESULTS_STUDY5.md` (written by hand from the files) |
+| `studies/poc/` | Exploratory proofs of concept | `poc_*.py`, `stmt_change.py` | `results/poc_*` | `docs/reports/RESULTS_POC.md` (written by hand from the files) |
+| `studies/study4_haiku_logit/` | Exploratory study; design b4a00fd before the run | `haiku_compare.py`; `study4_sensitivity.py` | `results/study4/` (top level), `results/study4/sensitivity/` | `docs/reports/RESULTS_STUDY4.md` (written by hand from the files) |
+| `studies/study4_networks_v2/` | **Amended** (v2 protocol 6048e0d, after v1 results); v1 superseded | `verify_v2.py` → `tune.py time/tune/forecast`; `study4_pooled.py` | `results/study4/neural/` (T2), `results/study4/neural_t1/` (T1); v1 in `results/study4/superseded_v1/` | `docs/reports/RESULTS_STUDY4.md`, audit section 2 |
+| `studies/study5_horizon/` | Exploratory study; design 85de61f before the run | `study5.py` | `results/study5/` | `docs/reports/RESULTS_STUDY5.md` (written by hand from the files) |
 | `audit/2026-10-13/` | Post-results audit | `recompute.py`, `rerun_plan1_t1b.py` | `recomputed_*.csv`, `results/post_audit_t1b/` | `AUDIT.md` |
 
 **Original vs amended networks.** `results/h2a/` is Plan 2 (paper-style settings, original monthly cutoff,
@@ -131,15 +133,15 @@ S vs S+N). `results/study4/neural*/` is Study 4 **version 2** (tuned, corrected 
 
 | Output | Made by | From |
 | --- | --- | --- |
-| `RESULTS.md` | `evaluation/evaluate.py` | `results/preds_T*.csv` |
-| `RESULTS_H2A.md`, `RESULTS_FROZEN.md` | `studies/plan2_neural_original/evaluate_h2a.py`, `frozen.py` | `results/h2a/`, `results/frozen/` |
-| `RESULTS_TEXT.md` | `studies/plan5_event_study/evaluate_text.py` | `results/text/` |
-| `RESULTS_STUDY2.md`, `RESULTS_STUDY2_FROZEN.md` | `studies/study2_regional/evaluate_study2.py`, `study2_frozen.py` | `results/study2/` |
-| `RESULTS_STUDY4.md`, `RESULTS_STUDY5.md`, `RESULTS_POC.md` | written by hand (by the AI agent) from the result files | `results/study4/`, `results/study5/`, `results/poc_*` |
+| `docs/reports/RESULTS.md` | `evaluation/evaluate.py` | `results/preds_T*.csv` |
+| `docs/reports/RESULTS_H2A.md`, `docs/reports/RESULTS_FROZEN.md` | `studies/plan2_neural_original/evaluate_h2a.py`, `frozen.py` | `results/h2a/`, `results/frozen/` |
+| `docs/reports/RESULTS_TEXT.md` | `studies/plan5_event_study/evaluate_text.py` | `results/text/` |
+| `docs/reports/RESULTS_STUDY2.md`, `docs/reports/RESULTS_STUDY2_FROZEN.md` | `studies/study2_regional/evaluate_study2.py`, `study2_frozen.py` | `results/study2/` |
+| `docs/reports/RESULTS_STUDY4.md`, `docs/reports/RESULTS_STUDY5.md`, `docs/reports/RESULTS_POC.md` | written by hand (by the AI agent) from the result files | `results/study4/`, `results/study5/`, `results/poc_*` |
 | `audit/2026-10-13/AUDIT.md` tables | `audit/2026-10-13/recompute.py`, `rerun_plan1_t1b.py` | saved predictions |
 | `figures/fig1`–`fig7` (README) | `evaluation/plots.py` | saved predictions |
 | `paper/figures/fig_rates.pdf`, `fig_cumgain.pdf`, `fig_forest.pdf` | `paper/make_figures.py` | `results/post_audit_t1b/`, `audit/2026-10-13/recomputed_comparisons.csv` |
-| Paper tables | typed into `paper/main.tex` from the files in `RESULTS_PROVENANCE.md` | – |
+| Paper tables | typed into `paper/main.tex` from the files in `docs/reports/RESULTS_PROVENANCE.md` | – |
 
 ## 6. Old module names
 

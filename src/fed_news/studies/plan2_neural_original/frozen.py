@@ -152,7 +152,7 @@ def report() -> pd.DataFrame:
         "pre-registered decision.", "",
         table.round(4).to_markdown(index=False), "",
     ]
-    (config.REPO / "RESULTS_FROZEN.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS_FROZEN.md").write_text("\n".join(lines), encoding="utf-8")
     return table
 
 

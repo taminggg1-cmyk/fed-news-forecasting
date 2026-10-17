@@ -37,6 +37,13 @@ ALPHA = 0.05
 PREREG_TAG = "prereg"
 
 
+
+def report_path(name: str) -> Path:
+    """Where a generated report (RESULTS*.md) is written: docs/reports/ (the repository root until 2026-10-18)."""
+    path = REPO / "docs" / "reports" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
 def ensure_dirs() -> None:
     for path in (DATA, CACHE, SECRETS, RESULTS):
         path.mkdir(parents=True, exist_ok=True)

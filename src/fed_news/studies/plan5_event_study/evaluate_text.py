@@ -98,7 +98,7 @@ def main() -> None:
         f"- HEAD: {_git('rev-parse', '--short', 'HEAD')}", *hashes,
         f"- naive_model.txt: {model}", "",
     ]
-    (config.REPO / "RESULTS_TEXT.md").write_text("\n".join(lines), encoding="utf-8")
+    config.report_path("RESULTS_TEXT.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines[:4]))
 
 

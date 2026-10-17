@@ -52,7 +52,7 @@ def report(results=RESULTS, repo=config.REPO, data_path=OUT_PATH) -> str:
 
 def main() -> None:
     text = report()
-    (config.REPO / "RESULTS_STUDY3.md").write_text(text, encoding="utf-8")
+    config.report_path("RESULTS_STUDY3.md").write_text(text, encoding="utf-8")
     print(text)
 
 
