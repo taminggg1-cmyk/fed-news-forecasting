@@ -266,6 +266,23 @@ def _subsets(cfg: TaskCfg, pan: dict, dates: pd.Series) -> dict:
     return {"all test months": np.ones(len(dates), bool), "paper window": paper.to_numpy()}
 
 
+def registered_holm(comp: pd.DataFrame, cfg: TaskCfg) -> list:
+    """Section 12.6: Holm across the registered family, every architecture in ARCHS times every primary pair, in
+    the task's main subset. The family is fixed by the design, not by which arms have finished: while any member
+    is missing, no adjusted p-value is reported (an interim family would understate the adjustment)."""
+    main_sub = "scheduled" if cfg.name == "T2" else "all test months"
+    family = [(arch, new, base) for arch in ARCHS for new, base in cfg.primary]
+    prim = comp[(comp["role"] == "primary") & (comp["subset"] == main_sub)]
+    found = {(r.arch, r.model, r.against): r.nw_p for r in prim.itertuples()}
+    missing = [k for k in family if k not in found]
+    if missing:
+        print(f"Holm not computed: registered family incomplete, missing {missing}", flush=True)
+        return [np.nan] * len(comp)
+    adj = holm({f"{a} {new}": found[(a, new, base)] for a, new, base in family})
+    return [adj[f"{r.arch} {r.model}"] if r.role == "primary" and r.subset == main_sub else np.nan
+            for r in comp.itertuples()]
+
+
 def forecast_all(pan: dict, device: str, archs=ARCHS, cfg: TaskCfg = TASKS["T2"]) -> pd.DataFrame:
     out, preds = cfg.out, {}
     for arch in archs:
@@ -309,11 +326,7 @@ def forecast_all(pan: dict, device: str, archs=ARCHS, cfg: TaskCfg = TASKS["T2"]
                                                           n[mask].reset_index(drop=True), cfg.refit_every)})
     comp = pd.DataFrame(comps)
     if len(comp):
-        main_sub = "scheduled" if cfg.name == "T2" else "all test months"
-        prim = comp[(comp["role"] == "primary") & (comp["subset"] == main_sub)]
-        adj = holm({f"{r.arch} {r.model}": r.nw_p for r in prim.itertuples()})
-        comp["nw_p_holm"] = [adj.get(f"{r.arch} {r.model}") if r.role == "primary" and r.subset == main_sub
-                             else np.nan for r in comp.itertuples()]
+        comp["nw_p_holm"] = registered_holm(comp, cfg)
     if cfg.name == "T1":
         comp = pd.concat([comp, paper_settings_rows(preds, archs, cfg)], ignore_index=True)
     table = pd.DataFrame(rows)

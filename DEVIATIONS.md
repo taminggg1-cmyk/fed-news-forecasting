@@ -98,3 +98,18 @@ right way), so it is exploratory, chosen post hoc, and outside the Holm family o
 - Subsets: scheduled meetings (main) and all meetings for the meeting task; all test months (main) and the
   2016-2025 paper window for the monthly task; plus test rows before 2016 vs from 2016 for both tasks.
 - TFT is excluded until its forecasts finish. Results: results/study4/exploratory_pooled_news.json.
+
+### Post-audit corrections (2026-10-13, after the audit in audit/2026-10-13/)
+
+- Plan 1 monthly task rerun on panel t1b (second-business-day cutoff), because the original t1 cutoff (first
+  calendar day) does not guarantee that inputs such as FEDFUNDS(t-1) were published. This is a post-audit
+  methodological correction, labelled exploratory. Settings, tests and the 308 test months are unchanged.
+  Outputs: results/post_audit_t1b/. The original results/preds_T1_*.csv, h1_tests.csv and metrics.csv are
+  unchanged. H1 remains not supported (T1 DM-HLN p 0.103 on t1b, was 0.077). Details: audit/2026-10-13/AUDIT.md,
+  section 6.1.
+- tune.forecast_all now takes the Holm family from the registered specification (tune.registered_holm). It
+  reports no adjustment while the family is incomplete. The four-test adjustment printed in
+  logs/v2_fc_t2_rnn.log (LSTM + Haiku 0.0135) is provisional and superseded; the committed six-test values are
+  unchanged (0.020).
+- The within-Plan-1 Holm value for H2d McNemar (0.045, results/h2_pvalues.csv) is an interim family. The final
+  15-test H2 family gives 0.146 (results/h2a/tests.csv).

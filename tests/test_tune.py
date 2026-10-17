@@ -172,3 +172,25 @@ def test_class_report_gives_balanced_accuracy_and_recalls():
     r = tune.class_report(p)
     assert r["recall_cut"] == 0.5 and r["recall_hold"] == 1.0 and r["recall_hike"] == 0.5
     assert r["balanced_accuracy"] == pytest.approx(2 / 3)
+
+
+def _primary_rows(cfg, archs, p=0.01):
+    sub = "scheduled" if cfg.name == "T2" else "all test months"
+    return pd.DataFrame([{"arch": a, "model": new, "against": base, "role": "primary", "subset": sub, "nw_p": p}
+                         for a in archs for new, base in cfg.primary])
+
+
+def test_holm_family_is_the_registered_six_even_when_arms_are_missing():
+    cfg = tune.TASKS["T2"]
+    interim = _primary_rows(cfg, ("lstm", "gru"))
+    assert np.isnan(tune.registered_holm(interim, cfg)).all()
+    full = _primary_rows(cfg, tune.ARCHS, p=0.0034)
+    assert np.allclose(tune.registered_holm(full, cfg), 6 * 0.0034)
+
+
+def test_registered_holm_reproduces_the_committed_v2_adjustments():
+    for name, sub in (("T2", "neural"), ("T1", "neural_t1")):
+        cfg = tune.TASKS[name]
+        comp = pd.read_csv(tune.config.RESULTS / "study4" / sub / f"comparison_neural_{name}.csv")
+        comp = comp[comp["role"] != "settings"].reset_index(drop=True)
+        assert np.allclose(tune.registered_holm(comp, cfg), comp["nw_p_holm"], equal_nan=True)
