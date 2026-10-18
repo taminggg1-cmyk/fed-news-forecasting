@@ -11,11 +11,15 @@ only. Hypotheses were registered with git tags before the main runs.
 *Draft research, October 2026. The code, analyses and documents were written with an AI coding agent
 (see [How this was made](#how-this-was-made)).*
 
+> **The final study now has its own repository:
+> [fed-news-forecasting-final](https://github.com/taminggg1-cmyk/fed-news-forecasting-final).** It holds only
+> Study 4 and Study 4 version 2. This repository is the full record, including every trial-and-error design.
+
 ## Main result: the final study
 
-The main result is the **final study**: Study 4 (simple model), Study 4 version 2 (tuned LSTM, GRU and TFT) and
-Study 5 (three meetings ahead). The author's briefing calls these Tests 4–6. Everything before them was an
-earlier design (see [Earlier designs](#earlier-designs-trial-and-error)).
+The main result is the **final study**: Study 4 (simple model) and Study 4 version 2 (tuned LSTM, GRU and TFT).
+The author's briefing calls these Tests 4 and 6. Everything else, including Study 5, was an earlier design (see
+[Earlier designs](#earlier-designs-trial-and-error)).
 
 **Short answer.** News improves most models: Fed tone lowers the forecast error in 12 of 14 main comparisons (10
 of 12 for the networks, and both versions of the simple model). Only one gain is statistically significant, LSTM +
@@ -28,8 +32,8 @@ economic statistics as first published (ALFRED), plus 8 market signals for meeti
 model (penalised ordered logit for meetings), LSTM, GRU and TFT. The networks are tuned with Optuna inside each
 training window and averaged over 8 seeds.
 
-**Status.** None of the final study is a pre-registration. Study 4 and Study 5 are exploratory studies whose design
-was committed before the first run. Study 4 version 2 is a dated amendment (6048e0d), written after the version 1
+**Status.** None of the final study is a pre-registration. Study 4 is an exploratory study whose design was
+committed before the first run. Study 4 version 2 is a dated amendment (6048e0d), written after the version 1
 network results had been seen.
 
 **Per meeting (206 scheduled meetings, 2001–2026): decisions called correctly, with p for the news versions**
@@ -46,8 +50,7 @@ network results had been seen.
 
 Only one gain is significant: LSTM + Haiku on normal data (RMSE 0.1420 → 0.1333 percentage points). The strict-data
 accuracy gains are within chance: a 3-point gain is about 6 meetings, and the LSTM + Haiku RMSE barely moved
-(0.1251 → 0.1246). Three meetings ahead (Study 5, simple model, strict real-time inputs, 204 meetings), ChronoBERT
-makes log loss 7.7% worse (p 0.898) and Haiku lowers it 1.2% (p 0.300).
+(0.1251 → 0.1246).
 
 **Monthly (308 months, 2001–2026): RMSE in percentage points, with p for the news versions**
 
@@ -94,8 +97,8 @@ in each column. Descriptive diagnostics
 
 ## Earlier designs (trial and error)
 
-These runs came before the final study. They used a different news input (a six-column news block), untuned
-paper-style networks, or a different question, so they are not the main result. The registered results stand as
+These runs are not the main result. They used a different news input (a six-column news block), untuned
+paper-style networks, a longer horizon, or a different question. The registered results stand as
 reported.
 
 | Briefing name | Repository name | Status | Result |
@@ -104,6 +107,7 @@ reported.
 | Test 1, networks | Plan 2, H2a | Registered (`prereg-h2a`) | News lowered error in 6 of 9 models; 0 of 10 tests after Holm |
 | Test 2, bond yields | Plan 5, H5; Study 2, H6 | Registered (`prereg-text`, `prereg-study2`) | No effect: Clark–West p 0.129 (1,778 releases), 0.369 (3,158) |
 | Test 3, tone readers | Proofs of concept (`results/poc_*`), Study 3 | Exploratory | No reader reached 70% agreement with human labels (52–68%) |
+| Test 5, three meetings ahead | Study 5 (`results/study5/`) | Exploratory study | Simple model, strict real-time inputs, 204 meetings: ChronoBERT made log loss 7.7% worse (p 0.898); Haiku lowered it 1.2% (p 0.300) |
 
 **Why the early LSTM and GRU did worse.** Plan 2 copied the paper's hyperparameters (preliminary SSRN version: 240
 units, 1 layer, 300 epochs) without tuning. Tuning them with Optuna in Study 4 version 2 lowered monthly squared
